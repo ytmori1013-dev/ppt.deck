@@ -1,0 +1,19 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap");
+@import "tailwindcss";
+
+:root {
+  --navy: #1f2a44;
+  --light-gray: #f2f4f7;
+  --mid-gray: #8a94a6;
+  --accent: #c8a45c;
+  /* Meiryo UI first (Windows/Office), Noto Sans JP fallback elsewhere. */
+  --slide-font: "Meiryo UI", "Meiryo", "Noto Sans JP", "Hiragino Kaku Gothic ProN",
+    sans-serif;
+}
+
+html,
+body {
+  background: var(--light-gray);
+  color: var(--navy);
+  font-family: var(--slide-font);
+}
