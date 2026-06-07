@@ -104,7 +104,47 @@ function Body({ spec }: { spec: SlideSpec }) {
     return <DiagramPreview diagram={spec.diagram} />;
   }
 
+  if (spec.layout === "image-full") {
+    return (
+      <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <ImageBox src={spec.image?.src} style={{ flex: 1 }} />
+        {spec.image?.caption && (
+          <div style={{ fontSize: "clamp(7px,0.85vw,9px)", color: CSS_COLORS.midGray, fontStyle: "italic", textAlign: "center", marginTop: "1.5%" }}>
+            {spec.image.caption}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (spec.layout === "image-right") {
+    return (
+      <div style={{ display: "flex", gap: "4%", height: "100%" }}>
+        <div style={{ flex: 1 }}>
+          <BulletList bullets={spec.bullets ?? []} />
+        </div>
+        <ImageBox src={spec.image?.src} style={{ flex: 1 }} />
+      </div>
+    );
+  }
+
   return <BulletList bullets={spec.bullets ?? []} />;
+}
+
+function ImageBox({ src, style }: { src?: string; style?: React.CSSProperties }) {
+  if (src) {
+    return (
+      <div style={{ ...style, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 4 }} />
+      </div>
+    );
+  }
+  return (
+    <div style={{ ...style, display: "grid", placeItems: "center", border: `1.5px dashed ${CSS_COLORS.midGray}`, borderRadius: 6, color: CSS_COLORS.midGray, fontSize: "clamp(8px,1.1vw,12px)", textAlign: "center", padding: "4%" }}>
+      画像をドロップ / 貼り付け
+    </div>
+  );
 }
 
 function BulletList({ bullets }: { bullets: SlideSpec["bullets"] }) {

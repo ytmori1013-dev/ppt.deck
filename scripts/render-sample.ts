@@ -9,6 +9,10 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { renderDeckToPptx } from "../src/lib/render/pptx";
 import type { Deck } from "../src/lib/types";
 
+// 1x1 PNG so the image layout can be smoke-tested without a real asset.
+const TINY_PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
 const deck: Deck = {
   brief: {
     title: "EV充電事業の市場性・収益性分析",
@@ -84,6 +88,13 @@ const deck: Deck = {
         type: "process",
         items: ["市場検証", "拠点選定", "PoC設置", "本格展開", "横展開"],
       },
+    },
+    {
+      layout: "image-right",
+      title: "イメージ",
+      lead: "拠点イメージを添えて訴求力を高める",
+      bullets: [{ text: "GPTで生成した画像を右に配置" }, { text: "テキストは左に要点を残す" }],
+      image: { src: TINY_PNG, caption: "サンプル画像" },
     },
     {
       layout: "closing",

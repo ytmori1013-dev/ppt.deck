@@ -11,7 +11,8 @@ export async function POST(req: Request) {
     const buf = await renderDeckToPptx(deck);
 
     const safeName =
-      deck.brief.title.replace(/[^\p{L}\p{N}_-]+/gu, "_").slice(0, 60) || "deck";
+      (deck.brief?.title ?? "deck").replace(/[^\p{L}\p{N}_-]+/gu, "_").slice(0, 60) ||
+      "deck";
 
     return new Response(new Uint8Array(buf), {
       headers: {

@@ -1,83 +1,107 @@
 # Consult Deck AI
 
-自然言語で「こういう資料が欲しい」と伝えるだけで、**コンサルファーム品質のストーリー → スライド構成 → 各スライド本文 → PowerPoint(.pptx) 出力**まで一気通貫で生成するWebアプリ（MVP）。
+**Claudeで作ったストーリー**と**GPTで作った画像**を、**ブランド固定のPowerPoint(.pptx)**に数秒で組み立てるツール。
 
-操作体験は **ChatGPTライクなチャット指示 ＋ Canvaライクなプレビュー**。
+> 「ストーリーはClaude、画像はGPT、PPT組み立ては人間」——その**手作業の最後の工程だけを自動化**します。
+> **APIキー無し**で完結（AI生成は任意のオプション）。
 
-## 設計思想（品質の肝）
+## なぜ作るか
 
-AIに自由にデザインさせると品質が崩れる。そこで責務を分離している:
+資料作成のボトルネックは「AIに何かを作らせること」ではなく、**出来た素材を手でスライドに組み立てる工程**。
+そこで本ツールは、AIに全部やらせる代わりに——
 
-- **AIは「中身」だけ**を担当 → 構造化スライド仕様(JSON / Zodで型固定)を出力。
-- **デザインはコード側で固定** → 決定論的レンダラ(`pptxgenjs`)がブランド(フォント/色/サイズ/レイアウト)を縛って `.pptx` 化。
-- 同じJSONを **Webプレビュー** にも流用し、画面と出力ファイルを一致させる。
+1. **Claudeに貼るプロンプト**を生成（ツールが用意） → Claudeが所定の記法で出力
+2. その出力を**貼り付けるだけで自動スライド化**（決定論的・無料）
+3. **GPTの画像をドロップ**して配置
+4. **ブランド固定で .pptx 出力**
 
-ブランド定数は [`src/lib/brand.ts`](src/lib/brand.ts) に集約。フォントは **Meiryo UI**（Windows/Office 同梱のため追加コストなし。Webプレビューのみ Noto Sans JP にフォールバック）。
+…という、いまの運用そのままを高速化します。
 
-## AIエージェント・パイプライン
+## 設計（品質の肝）
 
-| 役割 | 実装 | 内容 |
-| --- | --- | --- |
-| 1. Story Builder | `src/lib/agents/story.ts` | 依頼 → MECEなストーリー構成 |
-| 2. Slide Writer | `src/lib/agents/writer.ts` | 構成 → 各スライド本文(タイトル/リード文/本文/グラフ/図解/KPI) |
-| 3. Designer | `src/lib/agents/designer.ts` | レイアウトを内容に合わせて正規化（決定論的・無料） |
-| 4. Reviewer | `src/lib/agents/reviewer.ts` | コンサル品質チェック（1スライド1メッセージ/MECE/言い切り） |
-| — Reviser | `src/lib/agents/reviser.ts` | チャット修正（「4ページ目を強化」等） |
+**「中身」と「デザイン」を分離**。中身はあなた（＋Claude/GPT）が作り、デザインはコードが固定する。
 
-## 技術スタック（すべて無料 / OSS）
+- スライドは構造化データ(`SlideSpec` / Zod)。テキストは `parseDeckdown()` が決定論的に生成（[`src/lib/parse/deckdown.ts`](src/lib/parse/deckdown.ts)）。
+- レンダラ `pptxgenjs` がブランド(フォント/色/サイズ/レイアウト)を固定して `.pptx` 化（[`src/lib/render/pptx.ts`](src/lib/render/pptx.ts)）。
+- 同じデータをWebプレビューにも流用（画面＝出力）。
 
-- Next.js 15 (App Router) + TypeScript + Tailwind CSS 4
-- `pptxgenjs`（MIT）で `.pptx` 生成
-- Vercel AI SDK (`ai` + `@ai-sdk/anthropic`) + Zod で構造化出力
-- 永続化はMVPでは localStorage（DB不要）
+ブランド定数は [`src/lib/brand.ts`](src/lib/brand.ts)。フォントは **Meiryo UI**（Windows/Office同梱＝無料。Webプレビューのみ Noto Sans JP フォールバック）。
 
-> ライブラリ・レンダリングは完全無料ですが、**文章生成のLLMトークンは課金対象**です（既定は Claude）。完全無料で動かしたい場合は下記の Ollama 差替えを参照。
+## deckdown 記法
 
-## セットアップ
+Claudeに「この記法で書いて」と頼める（プロンプトはアプリの「📋 Claudeに貼るプロンプト」で自動生成）。
 
-```bash
-bun install            # または npm install
-cp .env.example .env   # ANTHROPIC_API_KEY を設定
-bun run dev            # http://localhost:3000
 ```
+# 資料タイトル
+> サブタイトル（任意）
+
+## セクション名
+
+### キッカー :: 結論メッセージ
+- 根拠の箇条書き
+  - サブ箇条書き
+
+### 数値で示す結論
+@kpi
+- 5,000億円 | 2030年市場規模
+- +22% | 年平均成長率
+
+### 推移で示す結論
+@chart bar          # bar | line | pie
+cat: 2024, 2026, 2028, 2030
+普通充電: 800, 1200, 1800, 2400
+note: ダミー値・要裏取り
+
+### 対比で示す結論
+@cols
+[機会] - 補助金 - 法人需要
+[脅威] - 大手の先行投資 - 電力価格変動
+
+### 手順で示す結論
+@diagram process    # process | matrix | pyramid
+- 市場検証 - 拠点選定 - PoC - 本格展開
+
+### 画像スライド
+@image
+caption: キャプション（任意。画像はアプリ上でドロップ/URLで追加）
+
+### 提言
+@closing
+> 全体を一言で言い切る
+```
+
+記法でなく普通の文章/箇条書きを貼っても、「自由テキスト」モードで自動分割します。
 
 ## 使い方
 
-1. 左で **依頼内容**（タイトル・目的・想定読者…）を入力 →「ストーリー生成」
-2. **ストーリー構成**を確認（並び替え/削除/追加/編集可）→「スライド生成」
-3. 右でサムネイル＋プレビューを確認
-4. **チャットで修正**（例:「4ページ目の市場分析を強化」「財務観点を追加」）
-5. **PowerPoint 出力** で `.pptx` をダウンロード
-
-## 検証
-
-LLM不要のレンダラ単体テスト（全レイアウトを網羅した `.pptx` を `tmp/sample.pptx` に出力）:
-
 ```bash
-bun run render:sample
+bun install     # または npm install
+bun run dev     # http://localhost:3000
 ```
 
-型チェック込みのビルド:
+1. 左で依頼を入力 →「📋 Claudeに貼るプロンプト」をコピー → Claudeへ
+2. Claudeの出力を貼り付け →「スライド化」
+3. 各スライドに**GPT画像をドロップ/URL/アップロード**（「📋 GPT画像プロンプト」も用意）
+4. 「PowerPoint 出力」で `.pptx` ダウンロード
+
+> ここまで **APIキー不要**。生成物はブラウザ内(IndexedDB)に保存されます。
+
+### AI生成（任意・要APIキー）
+
+`.env` に `ANTHROPIC_API_KEY` を設定すると、サイドバー「3. AI」で **下書き自動生成**・**チャット修正**が使えます（トークン課金あり）。完全無料で動かしたい場合は [`src/lib/llm.ts`](src/lib/llm.ts) の `getModel()` をローカルLLM(Ollama等)に差し替え。
+
+## 検証（すべてAPI不要）
 
 ```bash
-bun run build
+bun run parse:sample    # deckdown -> パース -> pptx（レイアウト一致を検証）
+bun run render:sample   # 全レイアウト網羅 + 画像スライドの pptx を出力
+bun run build           # 型チェック込みビルド
 ```
 
-## API
+## 技術スタック（無料 / OSS）
 
-| エンドポイント | 入力 | 出力 |
-| --- | --- | --- |
-| `POST /api/story` | `DeckBrief` | `{ outline }` |
-| `POST /api/slides` | `{ brief, outline, review? }` | `{ slides }` |
-| `POST /api/revise` | `{ deck, instruction }` | `{ slides }` |
-| `POST /api/export/pptx` | `Deck` | `.pptx` ファイル |
+Next.js 15 (App Router) + TypeScript + Tailwind 4 / `pptxgenjs`(MIT) / Vercel AI SDK + Zod（AIは任意）。永続化は IndexedDB。
 
-## 完全無料で動かす（Ollama 差替え）
+## 今後の拡張
 
-LLMは [`src/lib/llm.ts`](src/lib/llm.ts) の `getModel()` だけに依存しています。
-`ollama-ai-provider` 等を導入し、`getModel()` がローカルモデルを返すよう差し替えれば、
-他のコードを変更せずトークン課金なしで動かせます。
-
-## 今後の拡張（MVP外）
-
-- PDF出力 / デッキ永続化(DB) / 過去資料一覧 / テンプレート設定 / 認証
+- PDF出力 / 過去資料一覧 / テンプレート切替 / スライドの並べ替え・追加UI / 画像の自動トリミング

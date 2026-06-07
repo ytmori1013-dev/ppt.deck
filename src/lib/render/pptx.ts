@@ -427,6 +427,59 @@ function renderDiagram(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: numb
   }
 }
 
+function renderImageFull(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number) {
+  const img = spec.image;
+  if (!img?.src) return renderBullets(pptx, slide, spec, top);
+  const capH = img.caption ? 0.4 : 0;
+  slide.addImage({
+    data: img.src,
+    x: CANVAS.marginX,
+    y: top,
+    w: CONTENT_W,
+    h: CANVAS.h - top - 0.55 - capH,
+    sizing: { type: "contain", w: CONTENT_W, h: CANVAS.h - top - 0.55 - capH },
+  });
+  if (img.caption) {
+    slide.addText(img.caption, {
+      x: CANVAS.marginX,
+      y: CANVAS.h - 0.85,
+      w: CONTENT_W,
+      h: 0.35,
+      fontFace: FONT_FACE,
+      fontSize: SIZE.small,
+      italic: true,
+      color: COLORS.midGray,
+      align: "center",
+    });
+  }
+}
+
+function renderImageRight(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number) {
+  const img = spec.image;
+  if (!img?.src) return renderBullets(pptx, slide, spec, top);
+  const gap = 0.4;
+  const colW = (CONTENT_W - gap) / 2;
+  const h = CANVAS.h - top - 0.6;
+  // Text on the left
+  slide.addText(bulletRuns(spec.bullets ?? []), {
+    x: CANVAS.marginX,
+    y: top,
+    w: colW,
+    h,
+    fontFace: FONT_FACE,
+    valign: "top",
+  });
+  // Image on the right
+  slide.addImage({
+    data: img.src,
+    x: CANVAS.marginX + colW + gap,
+    y: top,
+    w: colW,
+    h,
+    sizing: { type: "contain", w: colW, h },
+  });
+}
+
 function renderClosing(pptx: PptxGenJS, slide: Slide, spec: SlideSpec) {
   slide.background = { color: COLORS.navy };
   slide.addText(spec.lead || spec.title, {
@@ -467,6 +520,10 @@ function renderSlide(pptx: PptxGenJS, spec: SlideSpec, pageNo: number) {
       return renderKpi(pptx, slide, spec, top);
     case "diagram":
       return renderDiagram(pptx, slide, spec, top);
+    case "image-full":
+      return renderImageFull(pptx, slide, spec, top);
+    case "image-right":
+      return renderImageRight(pptx, slide, spec, top);
     case "bullets":
     default:
       return renderBullets(pptx, slide, spec, top);
@@ -478,7 +535,7 @@ export async function renderDeckToPptx(deck: Deck): Promise<Buffer> {
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE";
   pptx.author = "Consult Deck AI";
-  pptx.title = deck.brief.title;
+  pptx.title = deck.brief?.title ?? "Consult Deck";
 
   deck.slides.forEach((spec, i) => renderSlide(pptx, spec, i + 1));
 

@@ -41,6 +41,8 @@ export const SlideLayoutSchema = z.enum([
   "chart", // グラフ中心
   "diagram", // 図解
   "kpi", // 数値ハイライト
+  "image-full", // 画像全面（GPT画像など）
+  "image-right", // 左テキスト＋右画像
   "closing", // 結び
 ]);
 export type SlideLayout = z.infer<typeof SlideLayoutSchema>;
@@ -76,6 +78,14 @@ export const KpiSchema = z.object({
   label: z.string().describe("数値の意味"),
 });
 
+export const ImageSchema = z.object({
+  // data URL (data:image/png;base64,...) を基本とする。URL画像はブラウザ側で
+  // dataURL化してから保存するため、レンダラは常に dataURL を前提にできる。
+  src: z.string(),
+  caption: z.string().optional(),
+});
+export type SlideImage = z.infer<typeof ImageSchema>;
+
 export const SlideSpecSchema = z.object({
   layout: SlideLayoutSchema,
   title: z.string().describe("スライドの短いラベル（kicker）"),
@@ -85,6 +95,7 @@ export const SlideSpecSchema = z.object({
   chart: ChartSchema.optional(),
   diagram: DiagramSchema.optional(),
   kpis: z.array(KpiSchema).optional(),
+  image: ImageSchema.optional(),
   notes: z.string().optional().describe("スピーカーノート"),
 });
 export type SlideSpec = z.infer<typeof SlideSpecSchema>;
@@ -94,9 +105,11 @@ export const SlideDeckSchema = z.object({
 });
 
 // --- Full deck (carried in client state) ----------------------------------
+// brief/outline are optional so a paste-only deck (no AI, no outline) still
+// validates and can be exported. slides is the only required part.
 export const DeckSchema = z.object({
-  brief: DeckBriefSchema,
-  outline: StoryOutlineSchema,
+  brief: DeckBriefSchema.partial().optional(),
+  outline: StoryOutlineSchema.optional(),
   slides: z.array(SlideSpecSchema),
 });
 export type Deck = z.infer<typeof DeckSchema>;

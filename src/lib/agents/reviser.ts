@@ -12,6 +12,7 @@ export async function reviseDeck(
   deck: Deck,
   instruction: string,
 ): Promise<SlideSpec[]> {
+  const b = deck.brief ?? {};
   const { object } = await generateObject({
     model: getModel(),
     schema: SlideDeckSchema,
@@ -23,7 +24,7 @@ export async function reviseDeck(
 - 「追加して」なら適切な位置に新規スライドを挿入、「短く」なら情報量を保ちつつ簡潔化。
 - 各 lead は言い切りの結論を維持。layout は内容に合うものを選ぶ。
 - 出力は更新後のスライド群全体（同じスキーマ）。`,
-    prompt: `依頼: ${deck.brief.title} / 目的: ${deck.brief.purpose} / 読者: ${deck.brief.audience}
+    prompt: `依頼: ${b.title ?? "(無題)"} / 目的: ${b.purpose ?? "-"} / 読者: ${b.audience ?? "-"}
 
 【ユーザーの修正指示】
 ${instruction}

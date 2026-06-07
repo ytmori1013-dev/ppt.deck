@@ -19,6 +19,13 @@ function pickLayout(s: SlideSpec): SlideSpec["layout"] {
   }
 
   // Repair content layouts to whatever data is actually present.
+  if (s.image && s.image.src) {
+    // Keep image-right when there is supporting text; otherwise full-bleed.
+    if (s.layout === "image-right" && (s.bullets?.length || s.columns?.length)) {
+      return "image-right";
+    }
+    return "image-full";
+  }
   if (s.chart && s.chart.series.length > 0) return "chart";
   if (s.diagram && s.diagram.items.length > 0) return "diagram";
   if (s.kpis && s.kpis.length > 0) return "kpi";
