@@ -1,5 +1,6 @@
 import PptxGenJS from "pptxgenjs";
 import { CANVAS, COLORS, FONT_FACE, SIZE } from "../brand";
+import { iconGlyph } from "../icons";
 import type { Deck, SlideSpec } from "../types";
 
 /**
@@ -7,23 +8,22 @@ import type { Deck, SlideSpec } from "../types";
  *
  * Every visual constant comes from brand.ts. The AI never controls colour,
  * font, size, or position — only the text/data inside each fixed layout.
- * That separation is what keeps output at a consistent "consulting" quality.
+ *
+ * Per the fixed design standard the look is strictly FLAT: brand blue +
+ * hairline rules on white, no shadows / gradients / 3D.
  */
 
 type Slide = ReturnType<PptxGenJS["addSlide"]>;
-type Shadow = NonNullable<PptxGenJS.ShapeProps["shadow"]>;
 
 const CONTENT_W = CANVAS.w - CANVAS.marginX * 2;
 
-// Soft drop shadow shared by cards / process boxes for a little depth.
-const CARD_SHADOW: Shadow = {
-  type: "outer",
-  color: COLORS.navy,
-  opacity: 0.16,
-  blur: 5,
-  offset: 2,
-  angle: 90,
-};
+/** 4-digit hex code point for a glyph, for use as a custom bullet character. */
+function glyphHex(g: string): string {
+  return (g.codePointAt(0) ?? 0x25aa)
+    .toString(16)
+    .toUpperCase()
+    .padStart(4, "0");
+}
 
 /** Shared header (kicker label + governing headline + accent rule) + footer.
  *  Returns the Y coordinate (inches) where the slide body may start. */
@@ -41,7 +41,7 @@ function addContentFrame(
     y: CANVAS.marginTop + 0.02,
     w: 0.16,
     h: 0.2,
-    fill: { color: COLORS.accent },
+    fill: { color: COLORS.primary },
   });
 
   // Kicker label
@@ -53,7 +53,7 @@ function addContentFrame(
     fontFace: FONT_FACE,
     fontSize: SIZE.kicker,
     bold: true,
-    color: COLORS.accent,
+    color: COLORS.primary,
     charSpacing: 2.5,
     align: "left",
     valign: "middle",
@@ -68,13 +68,13 @@ function addContentFrame(
     fontFace: FONT_FACE,
     fontSize: SIZE.headline,
     bold: true,
-    color: COLORS.navy,
+    color: COLORS.primaryDark,
     align: "left",
     valign: "top",
     lineSpacingMultiple: 1.04,
   });
 
-  // Two-tone rule under the headline: a short gold segment over a full hairline.
+  // Rule under the headline: a short blue segment over a full hairline.
   const ruleY = CANVAS.marginTop + 1.16;
   slide.addShape(pptx.ShapeType.line, {
     x: CANVAS.marginX,
@@ -86,9 +86,9 @@ function addContentFrame(
   slide.addShape(pptx.ShapeType.line, {
     x: CANVAS.marginX,
     y: ruleY,
-    w: 1.3,
+    w: 1.4,
     h: 0,
-    line: { color: COLORS.accent, width: 2.5 },
+    line: { color: COLORS.primary, width: 2.5 },
   });
 
   addFooter(pptx, slide, pageNo);
@@ -111,7 +111,7 @@ function addFooter(pptx: PptxGenJS, slide: Slide, pageNo: number) {
     h: 0.3,
     fontFace: FONT_FACE,
     fontSize: SIZE.small,
-    color: COLORS.midGray,
+    color: COLORS.gray,
     align: "left",
     charSpacing: 0.5,
   });
@@ -123,23 +123,24 @@ function addFooter(pptx: PptxGenJS, slide: Slide, pageNo: number) {
     fontFace: FONT_FACE,
     fontSize: SIZE.small,
     bold: true,
-    color: COLORS.navy,
+    color: COLORS.primary,
     align: "right",
   });
 }
 
-type BulletItem = { text: string; sub?: string[] };
+type BulletItem = { text: string; sub?: string[]; icon?: string };
 
 function bulletRuns(bullets: BulletItem[]) {
   const runs: PptxGenJS.TextProps[] = [];
   for (const b of bullets) {
+    const glyph = iconGlyph(b.icon);
     runs.push({
       text: b.text,
       options: {
-        // Square gold-tinted marker reads cleaner than a default round dot.
-        bullet: { code: "25AA", indent: 20 },
+        // Icon glyph (if any) replaces the default square marker.
+        bullet: { code: glyph ? glyphHex(glyph) : "25AA", indent: 20 },
         fontSize: SIZE.body,
-        color: COLORS.navy,
+        color: COLORS.text,
         paraSpaceAfter: 11,
         lineSpacingMultiple: 1.12,
       },
@@ -151,7 +152,7 @@ function bulletRuns(bullets: BulletItem[]) {
           bullet: { code: "2013", indent: 18 }, // en dash for sub-points
           indentLevel: 1,
           fontSize: SIZE.body - 1.5,
-          color: COLORS.textGray,
+          color: COLORS.gray,
           paraSpaceAfter: 5,
           lineSpacingMultiple: 1.1,
         },
@@ -164,22 +165,21 @@ function bulletRuns(bullets: BulletItem[]) {
 // --- Layout renderers ------------------------------------------------------
 
 function renderTitle(pptx: PptxGenJS, slide: Slide, spec: SlideSpec) {
-  slide.background = { color: COLORS.navy };
+  slide.background = { color: COLORS.primaryDark };
   // Full-height accent spine.
   slide.addShape(pptx.ShapeType.rect, {
     x: 0,
     y: 0,
     w: 0.22,
     h: CANVAS.h,
-    fill: { color: COLORS.accent },
+    fill: { color: COLORS.primary },
   });
-  // Faint oversized rule near the top for structure.
   slide.addShape(pptx.ShapeType.line, {
     x: CANVAS.marginX,
     y: 2.35,
     w: 1.5,
     h: 0,
-    line: { color: COLORS.accent, width: 2.5 },
+    line: { color: COLORS.primary, width: 2.5 },
   });
   slide.addText(spec.title, {
     x: CANVAS.marginX,
@@ -202,7 +202,7 @@ function renderTitle(pptx: PptxGenJS, slide: Slide, spec: SlideSpec) {
       h: 0.9,
       fontFace: FONT_FACE,
       fontSize: SIZE.lead,
-      color: COLORS.lightGray,
+      color: COLORS.paleBlue,
       align: "left",
       lineSpacingMultiple: 1.2,
     });
@@ -214,13 +214,13 @@ function renderTitle(pptx: PptxGenJS, slide: Slide, spec: SlideSpec) {
     h: 0.3,
     fontFace: FONT_FACE,
     fontSize: SIZE.small,
-    color: COLORS.midGray,
+    color: COLORS.paleBlue,
     charSpacing: 1.5,
   });
 }
 
 function renderSectionDivider(pptx: PptxGenJS, slide: Slide, spec: SlideSpec) {
-  slide.background = { color: COLORS.navy };
+  slide.background = { color: COLORS.primaryDark };
   // Subtle band to lift the title off the flat background.
   slide.addShape(pptx.ShapeType.rect, {
     x: 0,
@@ -245,7 +245,7 @@ function renderSectionDivider(pptx: PptxGenJS, slide: Slide, spec: SlideSpec) {
     y: 4.15,
     w: 1.4,
     h: 0,
-    line: { color: COLORS.accent, width: 2.5 },
+    line: { color: COLORS.primary, width: 2.5 },
   });
 }
 
@@ -268,23 +268,16 @@ function renderTwoColumn(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: nu
   const headH = 0.5;
   cols.slice(0, 2).forEach((col, i) => {
     const x = CANVAS.marginX + i * (colW + gap);
-    // Navy header bar with an accent left tab.
+    // Blue header bar.
     slide.addShape(pptx.ShapeType.rect, {
       x,
       y: top,
       w: colW,
       h: headH,
-      fill: { color: COLORS.navy },
-    });
-    slide.addShape(pptx.ShapeType.rect, {
-      x,
-      y: top,
-      w: 0.1,
-      h: headH,
-      fill: { color: COLORS.accent },
+      fill: { color: COLORS.primary },
     });
     slide.addText(col.heading, {
-      x: x + 0.25,
+      x: x + 0.22,
       y: top,
       w: colW - 0.4,
       h: headH,
@@ -314,6 +307,52 @@ function renderTwoColumn(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: nu
   });
 }
 
+function renderTable(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number) {
+  const table = spec.table;
+  if (!table || table.headers.length === 0) return renderBullets(pptx, slide, spec, top);
+
+  const bodyH = CANVAS.h - top - 0.7;
+  const rowCount = table.rows.length + 1;
+  const rowH = Math.min(0.7, Math.max(0.4, bodyH / rowCount));
+
+  const header: PptxGenJS.TableRow = table.headers.map((h) => ({
+    text: h,
+    options: {
+      fill: { color: COLORS.primary },
+      color: COLORS.white,
+      bold: true,
+      align: "center" as const,
+      valign: "middle" as const,
+    },
+  }));
+
+  const rows: PptxGenJS.TableRow[] = table.rows.map((r, ri) =>
+    table.headers.map((_, ci) => ({
+      text: r[ci] ?? "",
+      options: {
+        fill: { color: ri % 2 === 0 ? COLORS.white : COLORS.lightGray },
+        color: COLORS.text,
+        // First column slightly emphasised (row label).
+        bold: ci === 0,
+        align: (ci === 0 ? "left" : "center") as "left" | "center",
+        valign: "middle" as const,
+      },
+    })),
+  );
+
+  slide.addTable([header, ...rows], {
+    x: CANVAS.marginX,
+    y: top,
+    w: CONTENT_W,
+    rowH,
+    fontFace: FONT_FACE,
+    fontSize: SIZE.body - 0.5,
+    border: { type: "solid", color: COLORS.border, pt: 1 },
+    valign: "middle",
+    autoPage: false,
+  });
+}
+
 function renderChart(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number) {
   const chart = spec.chart;
   if (!chart) return renderBullets(pptx, slide, spec, top);
@@ -335,7 +374,7 @@ function renderChart(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number
     y: top,
     w: CONTENT_W,
     h: CANVAS.h - top - (chart.note ? 0.9 : 0.6),
-    chartColors: [COLORS.navy, COLORS.accent, COLORS.navyLight, COLORS.midGray],
+    chartColors: [COLORS.primary, COLORS.navyLight, COLORS.gray, COLORS.red],
     showLegend: chart.series.length > 1 || isPie,
     legendPos: "b",
     legendFontFace: FONT_FACE,
@@ -345,12 +384,11 @@ function renderChart(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number
     showPercent: isPie,
     dataLabelFontFace: FONT_FACE,
     dataLabelFontSize: SIZE.small,
-    dataLabelColor: isPie ? COLORS.white : COLORS.navy,
+    dataLabelColor: isPie ? COLORS.white : COLORS.text,
     dataLabelPosition: chart.type === "bar" ? "outEnd" : undefined,
-    // Axes: keep the category axis, mute the value axis + gridlines.
     catAxisLabelFontFace: FONT_FACE,
     catAxisLabelFontSize: SIZE.small,
-    catAxisLabelColor: COLORS.textGray,
+    catAxisLabelColor: COLORS.text,
     catAxisLineColor: COLORS.border,
     valAxisHidden: !isPie,
     valGridLine: { style: "none" },
@@ -366,7 +404,7 @@ function renderChart(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number
       fontFace: FONT_FACE,
       fontSize: SIZE.small,
       italic: true,
-      color: COLORS.midGray,
+      color: COLORS.gray,
     });
   }
 }
@@ -380,59 +418,72 @@ function renderKpi(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number) 
   const y = top + 0.55;
   kpis.forEach((k, i) => {
     const x = CANVAS.marginX + i * (cardW + gap);
-    // White card with hairline border + soft shadow.
+    const glyph = iconGlyph(k.icon);
+    // Flat pale-blue card with a hairline border (no shadow).
     slide.addShape(pptx.ShapeType.rect, {
       x,
       y,
       w: cardW,
       h: cardH,
-      fill: { color: COLORS.white },
+      fill: { color: COLORS.paleBlue },
       line: { color: COLORS.border, width: 1 },
-      shadow: CARD_SHADOW,
     });
-    // Accent bar across the top edge.
-    slide.addShape(pptx.ShapeType.rect, {
-      x,
-      y,
-      w: cardW,
-      h: 0.1,
-      fill: { color: COLORS.accent },
-    });
+    // Optional icon glyph at the top.
+    if (glyph) {
+      slide.addText(glyph, {
+        x: x + 0.12,
+        y: y + 0.22,
+        w: cardW - 0.24,
+        h: 0.4,
+        fontFace: FONT_FACE,
+        fontSize: 18,
+        color: COLORS.primary,
+        align: "center",
+        valign: "middle",
+      });
+    }
     // Big metric value.
     slide.addText(k.value, {
       x: x + 0.12,
-      y: y + 0.45,
+      y: y + (glyph ? 0.62 : 0.42),
       w: cardW - 0.24,
       h: 1.0,
       fontFace: FONT_FACE,
       fontSize: SIZE.kpiValue,
       bold: true,
-      color: COLORS.navy,
+      color: COLORS.primaryDark,
       align: "center",
       valign: "middle",
       shrinkText: true,
     });
-    // Short accent divider between value and label.
-    slide.addShape(pptx.ShapeType.line, {
-      x: x + cardW / 2 - 0.3,
-      y: y + 1.6,
-      w: 0.6,
-      h: 0,
-      line: { color: COLORS.accent, width: 1.5 },
-    });
     // Label.
     slide.addText(k.label, {
       x: x + 0.18,
-      y: y + 1.75,
+      y: y + 1.7,
       w: cardW - 0.36,
-      h: 0.65,
+      h: 0.5,
       fontFace: FONT_FACE,
       fontSize: SIZE.body - 1,
-      color: COLORS.textGray,
+      bold: true,
+      color: COLORS.text,
       align: "center",
       valign: "top",
       lineSpacingMultiple: 1.05,
     });
+    // Optional caption.
+    if (k.caption) {
+      slide.addText(k.caption, {
+        x: x + 0.18,
+        y: y + cardH - 0.5,
+        w: cardW - 0.36,
+        h: 0.4,
+        fontFace: FONT_FACE,
+        fontSize: SIZE.small,
+        color: COLORS.gray,
+        align: "center",
+        valign: "bottom",
+      });
+    }
   });
 }
 
@@ -442,58 +493,57 @@ function renderDiagram(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: numb
   const items = dg.items;
 
   if (dg.type === "process") {
-    const n = Math.min(items.length, 5);
-    const gap = 0.34;
-    const boxW = (CONTENT_W - gap * (n - 1)) / n;
-    const y = top + 0.9;
-    const h = 1.5;
+    // Numbered blue circles + label below, joined by arrows (workflow style).
+    const n = Math.min(items.length, 6);
+    const gap = 0.24;
+    const colW = (CONTENT_W - gap * (n - 1)) / n;
+    const cy = top + 1.0;
+    const dia = Math.min(1.0, colW * 0.7);
     items.slice(0, n).forEach((it, i) => {
-      const x = CANVAS.marginX + i * (boxW + gap);
-      slide.addShape(pptx.ShapeType.roundRect, {
-        x,
-        y,
-        w: boxW,
-        h,
-        rectRadius: 0.1,
-        fill: { color: i % 2 === 0 ? COLORS.navy : COLORS.navyLight },
-        line: { color: COLORS.navy, width: 0 },
-        shadow: CARD_SHADOW,
+      const x = CANVAS.marginX + i * (colW + gap);
+      const cx = x + colW / 2;
+      slide.addShape(pptx.ShapeType.ellipse, {
+        x: cx - dia / 2,
+        y: cy,
+        w: dia,
+        h: dia,
+        fill: { color: COLORS.primary },
       });
-      // Step number chip.
       slide.addText(String(i + 1), {
-        x: x + 0.12,
-        y: y + 0.12,
-        w: 0.5,
-        h: 0.32,
+        x: cx - dia / 2,
+        y: cy,
+        w: dia,
+        h: dia,
         fontFace: FONT_FACE,
-        fontSize: SIZE.small,
-        bold: true,
-        color: COLORS.accent,
-        align: "left",
-        valign: "middle",
-      });
-      slide.addText(it, {
-        x: x + 0.12,
-        y,
-        w: boxW - 0.24,
-        h,
-        fontFace: FONT_FACE,
-        fontSize: SIZE.body,
+        fontSize: 20,
         bold: true,
         color: COLORS.white,
         align: "center",
         valign: "middle",
       });
+      slide.addText(it, {
+        x,
+        y: cy + dia + 0.12,
+        w: colW,
+        h: 0.9,
+        fontFace: FONT_FACE,
+        fontSize: SIZE.body,
+        bold: true,
+        color: COLORS.text,
+        align: "center",
+        valign: "top",
+        lineSpacingMultiple: 1.05,
+      });
       if (i < n - 1) {
         slide.addText("›", {
-          x: x + boxW,
-          y,
+          x: x + colW,
+          y: cy,
           w: gap,
-          h,
+          h: dia,
           fontFace: FONT_FACE,
-          fontSize: 22,
+          fontSize: 20,
           bold: true,
-          color: COLORS.accent,
+          color: COLORS.primary,
           align: "center",
           valign: "middle",
         });
@@ -515,9 +565,8 @@ function renderDiagram(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: numb
         y: y0 + i * rowH,
         w,
         h: rowH - 0.12,
-        fill: { color: i === 0 ? COLORS.accent : COLORS.navy },
+        fill: { color: i === 0 ? COLORS.primary : COLORS.navyLight },
         flipV: true,
-        shadow: CARD_SHADOW,
       });
       slide.addText(it, {
         x,
@@ -552,9 +601,8 @@ function renderDiagram(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: numb
       y,
       w: cellW,
       h: cellH,
-      fill: { color: dark ? COLORS.navy : COLORS.lightGray },
-      line: { color: dark ? COLORS.navy : COLORS.border, width: 1 },
-      shadow: CARD_SHADOW,
+      fill: { color: dark ? COLORS.primary : COLORS.lightGray },
+      line: { color: dark ? COLORS.primary : COLORS.border, width: 1 },
     });
     slide.addText(cells[i] ?? "", {
       x: x + 0.2,
@@ -564,7 +612,7 @@ function renderDiagram(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: numb
       fontFace: FONT_FACE,
       fontSize: SIZE.body,
       bold: true,
-      color: dark ? COLORS.white : COLORS.navy,
+      color: dark ? COLORS.white : COLORS.text,
       align: "center",
       valign: "middle",
       lineSpacingMultiple: 1.1,
@@ -593,7 +641,7 @@ function renderImageFull(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: nu
       fontFace: FONT_FACE,
       fontSize: SIZE.small,
       italic: true,
-      color: COLORS.midGray,
+      color: COLORS.gray,
       align: "center",
     });
   }
@@ -634,13 +682,13 @@ function renderImageRight(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: n
 }
 
 function renderClosing(pptx: PptxGenJS, slide: Slide, spec: SlideSpec) {
-  slide.background = { color: COLORS.navy };
+  slide.background = { color: COLORS.primaryDark };
   slide.addShape(pptx.ShapeType.line, {
     x: CANVAS.w / 2 - 0.7,
     y: 2.45,
     w: 1.4,
     h: 0,
-    line: { color: COLORS.accent, width: 2.5 },
+    line: { color: COLORS.primary, width: 2.5 },
   });
   slide.addText(spec.lead || spec.title, {
     x: CANVAS.marginX,
@@ -675,6 +723,8 @@ function renderSlide(pptx: PptxGenJS, spec: SlideSpec, pageNo: number) {
   switch (spec.layout) {
     case "two-column":
       return renderTwoColumn(pptx, slide, spec, top);
+    case "table":
+      return renderTable(pptx, slide, spec, top);
     case "chart":
       return renderChart(pptx, slide, spec, top);
     case "kpi":

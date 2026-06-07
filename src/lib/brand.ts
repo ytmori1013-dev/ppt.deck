@@ -5,32 +5,50 @@
  * is that EVERY visual decision lives here, not in the model output. The pptx
  * renderer and the web preview both read from this module so the on-screen
  * preview matches the exported file.
+ *
+ * Palette + rules follow the fixed "デザイン・スタイル標準":
+ *   Primary #1976D2 / Pale #E8F4FB / Emphasis(red) #DB4315 /
+ *   Text #222222 / Gray #888888 / Border #E0E0E0.
+ *   Flat only — NO shadows / gradients / 3D.
  */
 
-// Hex without leading '#': pptxgenjs wants "1F2A44".
+// Hex without leading '#': pptxgenjs wants "1976D2".
 export const COLORS = {
-  navy: "1F2A44",
-  navyLight: "33415E", // secondary navy for headers / accents
+  primary: "1976D2", // brand blue — structure, headers, accents
+  primaryDark: "13294B", // deep navy for cover / section / closing backgrounds
+  navy: "13294B", // alias kept for existing references (dark backgrounds)
+  red: "DB4315", // emphasis only — used very sparingly
   white: "FFFFFF",
-  lightGray: "F2F4F7",
-  border: "DCE1EB", // hairline borders on cards / rules
-  midGray: "8A94A6",
-  textGray: "5B6678", // body text on white that isn't full navy
-  accent: "C8A45C", // muted gold — used sparingly for rules/highlights
-  accentSoft: "F3ECDC", // pale gold tint for fills behind highlights
+  paleBlue: "E8F4FB", // card / highlight fills
+  lightGray: "F4F6F8",
+  border: "E0E0E0", // hairline rules & card borders
+  gray: "888888", // secondary text / footnotes
+  text: "222222", // body text
+  // --- aliases (so existing code keeps compiling) ------------------------
+  navyLight: "1F4E89",
+  accent: "1976D2",
+  accentSoft: "E8F4FB",
+  midGray: "888888",
+  textGray: "555F6D",
 } as const;
 
 // CSS variants (with '#') for the web preview.
 export const CSS_COLORS = {
+  primary: `#${COLORS.primary}`,
+  primaryDark: `#${COLORS.primaryDark}`,
   navy: `#${COLORS.navy}`,
   navyLight: `#${COLORS.navyLight}`,
+  red: `#${COLORS.red}`,
   white: `#${COLORS.white}`,
+  paleBlue: `#${COLORS.paleBlue}`,
   lightGray: `#${COLORS.lightGray}`,
   border: `#${COLORS.border}`,
-  midGray: `#${COLORS.midGray}`,
-  textGray: `#${COLORS.textGray}`,
+  gray: `#${COLORS.gray}`,
+  text: `#${COLORS.text}`,
   accent: `#${COLORS.accent}`,
   accentSoft: `#${COLORS.accentSoft}`,
+  midGray: `#${COLORS.midGray}`,
+  textGray: `#${COLORS.textGray}`,
 } as const;
 
 // Font: Meiryo UI is bundled with Windows / Office, so naming it in the .pptx
@@ -46,11 +64,11 @@ export const SIZE = {
   sectionTitle: 28,
   title: 24, // slide kicker label
   kicker: 11, // small caps label above the headline
-  headline: 21, // governing message / リード文 (body slides)
-  lead: 15, // cover subtitle
-  body: 13,
+  headline: 20, // governing message / リード文 (body slides)
+  lead: 14, // cover subtitle / リード文 (14pt fixed)
+  body: 12.5,
   small: 9.5,
-  kpiValue: 40,
+  kpiValue: 38,
 } as const;
 
 // 16:9 widescreen canvas in inches (pptxgenjs LAYOUT_WIDE).

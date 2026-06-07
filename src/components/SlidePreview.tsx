@@ -1,4 +1,5 @@
 import { CSS_COLORS, WEB_FONT_STACK } from "@/lib/brand";
+import { iconGlyph } from "@/lib/icons";
 import type { SlideSpec } from "@/lib/types";
 
 /**
@@ -77,35 +78,39 @@ function Body({ spec }: { spec: SlideSpec }) {
   if (spec.layout === "kpi" && spec.kpis?.length) {
     return (
       <div style={{ display: "flex", gap: "3%", height: "100%", alignItems: "center" }}>
-        {spec.kpis.slice(0, 4).map((k, i) => (
-          <div
-            key={i}
-            style={{
-              flex: 1,
-              alignSelf: "stretch",
-              maxHeight: "82%",
-              background: "#fff",
-              border: `1px solid ${CSS_COLORS.border}`,
-              borderRadius: 6,
-              boxShadow: "0 2px 6px rgba(31,42,68,0.10)",
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "6% 4%",
-              textAlign: "center",
-              position: "relative",
-            }}
-          >
-            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "5%", minHeight: 3, background: CSS_COLORS.accent }} />
-            <div style={{ color: CSS_COLORS.navy, fontWeight: 700, fontSize: "clamp(16px,3.2vw,34px)", lineHeight: 1.05 }}>{k.value}</div>
-            <div style={{ width: "30%", height: 2, background: CSS_COLORS.accent, margin: "7% 0" }} />
-            <div style={{ color: CSS_COLORS.textGray, fontSize: "clamp(8px,1.1vw,12px)" }}>{k.label}</div>
-          </div>
-        ))}
+        {spec.kpis.slice(0, 4).map((k, i) => {
+          const glyph = iconGlyph(k.icon);
+          return (
+            <div
+              key={i}
+              style={{
+                flex: 1,
+                alignSelf: "stretch",
+                maxHeight: "84%",
+                background: CSS_COLORS.paleBlue,
+                border: `1px solid ${CSS_COLORS.border}`,
+                borderRadius: 4,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "6% 4%",
+                textAlign: "center",
+              }}
+            >
+              {glyph && <div style={{ color: CSS_COLORS.primary, fontSize: "clamp(11px,1.8vw,18px)", marginBottom: "4%" }}>{glyph}</div>}
+              <div style={{ color: CSS_COLORS.primaryDark, fontWeight: 700, fontSize: "clamp(16px,3.2vw,34px)", lineHeight: 1.05 }}>{k.value}</div>
+              <div style={{ color: CSS_COLORS.text, fontWeight: 700, fontSize: "clamp(8px,1.1vw,12px)", marginTop: "6%" }}>{k.label}</div>
+              {k.caption && <div style={{ color: CSS_COLORS.gray, fontSize: "clamp(7px,0.85vw,10px)", marginTop: "3%" }}>{k.caption}</div>}
+            </div>
+          );
+        })}
       </div>
     );
+  }
+
+  if (spec.layout === "table" && spec.table?.headers.length) {
+    return <TablePreview table={spec.table} />;
   }
 
   if (spec.layout === "two-column" && spec.columns?.length) {
@@ -113,11 +118,8 @@ function Body({ spec }: { spec: SlideSpec }) {
       <div style={{ display: "flex", gap: "4%", height: "100%" }}>
         {spec.columns.slice(0, 2).map((col, i) => (
           <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-            <div style={{ display: "flex", alignItems: "stretch", borderRadius: "3px 3px 0 0", overflow: "hidden" }}>
-              <span style={{ width: "2.5%", minWidth: 3, background: CSS_COLORS.accent }} />
-              <div style={{ flex: 1, background: CSS_COLORS.navy, color: "#fff", fontWeight: 700, fontSize: "clamp(9px,1.3vw,13px)", padding: "2.5% 4%" }}>
-                {col.heading}
-              </div>
+            <div style={{ background: CSS_COLORS.primary, color: "#fff", fontWeight: 700, fontSize: "clamp(9px,1.3vw,13px)", padding: "2.5% 4%", borderRadius: "3px 3px 0 0" }}>
+              {col.heading}
             </div>
             <div style={{ flex: 1, background: CSS_COLORS.lightGray, border: `1px solid ${CSS_COLORS.border}`, borderTop: "none", borderRadius: "0 0 3px 3px", padding: "2% 4%", minHeight: 0, overflow: "hidden" }}>
               <BulletList bullets={col.bullets} />
@@ -181,27 +183,62 @@ function ImageBox({ src, style }: { src?: string; style?: React.CSSProperties })
 
 function BulletList({ bullets }: { bullets: SlideSpec["bullets"] }) {
   return (
-    <ul style={{ margin: "3% 0 0", paddingLeft: "4%", color: CSS_COLORS.navy, fontSize: "clamp(9px,1.3vw,13px)", lineHeight: 1.5 }}>
-      {(bullets ?? []).map((b, i) => (
-        <li key={i} style={{ marginBottom: "1.5%", listStyle: "disc" }}>
-          {b.text}
-          {b.sub?.length ? (
-            <ul style={{ paddingLeft: "5%", color: CSS_COLORS.midGray, fontSize: "0.9em", marginTop: "0.5%" }}>
-              {b.sub.map((s, j) => (
-                <li key={j} style={{ listStyle: "circle" }}>{s}</li>
-              ))}
-            </ul>
-          ) : null}
-        </li>
-      ))}
+    <ul style={{ margin: "3% 0 0", paddingLeft: "4%", color: CSS_COLORS.text, fontSize: "clamp(9px,1.3vw,13px)", lineHeight: 1.5 }}>
+      {(bullets ?? []).map((b, i) => {
+        const glyph = iconGlyph(b.icon);
+        return (
+          <li key={i} style={{ marginBottom: "1.5%", listStyle: glyph ? "none" : "disc" }}>
+            {glyph && <span style={{ color: CSS_COLORS.primary, marginLeft: "-4%", marginRight: "1.5%" }}>{glyph}</span>}
+            {b.text}
+            {b.sub?.length ? (
+              <ul style={{ paddingLeft: "5%", color: CSS_COLORS.gray, fontSize: "0.9em", marginTop: "0.5%" }}>
+                {b.sub.map((s, j) => (
+                  <li key={j} style={{ listStyle: "circle" }}>{s}</li>
+                ))}
+              </ul>
+            ) : null}
+          </li>
+        );
+      })}
     </ul>
+  );
+}
+
+function TablePreview({ table }: { table: NonNullable<SlideSpec["table"]> }) {
+  const cell: React.CSSProperties = {
+    border: `1px solid ${CSS_COLORS.border}`,
+    padding: "1.4% 2%",
+    fontSize: "clamp(7px,1vw,11px)",
+    textAlign: "left",
+  };
+  return (
+    <div style={{ height: "100%", overflow: "hidden", paddingTop: "1%" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+        <thead>
+          <tr>
+            {table.headers.map((h, i) => (
+              <th key={i} style={{ ...cell, background: CSS_COLORS.primary, color: "#fff", fontWeight: 700, textAlign: "center" }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {table.rows.map((r, ri) => (
+            <tr key={ri} style={{ background: ri % 2 === 0 ? "#fff" : CSS_COLORS.lightGray }}>
+              {table.headers.map((_, ci) => (
+                <td key={ci} style={{ ...cell, color: CSS_COLORS.text, fontWeight: ci === 0 ? 700 : 400, textAlign: ci === 0 ? "left" : "center" }}>{r[ci] ?? ""}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
 function ChartPreview({ chart }: { chart: NonNullable<SlideSpec["chart"]> }) {
   const all = chart.series.flatMap((s) => s.values);
   const max = Math.max(1, ...all);
-  const palette = [CSS_COLORS.navy, CSS_COLORS.accent, CSS_COLORS.midGray];
+  const palette = [CSS_COLORS.primary, CSS_COLORS.navyLight, CSS_COLORS.gray];
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <div style={{ flex: 1, display: "flex", alignItems: "flex-end", gap: "2%", paddingTop: "2%" }}>
@@ -228,14 +265,18 @@ function ChartPreview({ chart }: { chart: NonNullable<SlideSpec["chart"]> }) {
 function DiagramPreview({ diagram }: { diagram: NonNullable<SlideSpec["diagram"]> }) {
   const items = diagram.items;
   if (diagram.type === "process") {
+    const shown = items.slice(0, 6);
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: "1%", height: "100%" }}>
-        {items.slice(0, 5).map((it, i) => (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "1%", height: "100%" }}>
+        {shown.map((it, i) => (
           <div key={i} style={{ display: "contents" }}>
-            <div style={{ flex: 1, background: i % 2 === 0 ? CSS_COLORS.navy : CSS_COLORS.accent, color: "#fff", fontWeight: 700, fontSize: "clamp(8px,1.1vw,12px)", borderRadius: 6, padding: "4% 2%", textAlign: "center" }}>
-              {it}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "8%" }}>
+              <div style={{ aspectRatio: "1", width: "min(46%, 56px)", borderRadius: "50%", background: CSS_COLORS.primary, color: "#fff", fontWeight: 700, fontSize: "clamp(10px,1.6vw,18px)", display: "grid", placeItems: "center" }}>
+                {i + 1}
+              </div>
+              <div style={{ color: CSS_COLORS.text, fontWeight: 700, fontSize: "clamp(8px,1.05vw,12px)", textAlign: "center", lineHeight: 1.2 }}>{it}</div>
             </div>
-            {i < Math.min(items.length, 5) - 1 && <span style={{ color: CSS_COLORS.midGray, fontWeight: 700 }}>›</span>}
+            {i < shown.length - 1 && <span style={{ color: CSS_COLORS.primary, fontWeight: 700, alignSelf: "flex-start", marginTop: "8%" }}>›</span>}
           </div>
         ))}
       </div>
@@ -245,7 +286,7 @@ function DiagramPreview({ diagram }: { diagram: NonNullable<SlideSpec["diagram"]
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, height: "100%" }}>
         {items.slice(0, 4).map((it, i, arr) => (
-          <div key={i} style={{ width: `${40 + ((i + 1) / arr.length) * 55}%`, background: i === 0 ? CSS_COLORS.accent : CSS_COLORS.navy, color: "#fff", textAlign: "center", fontSize: "clamp(8px,1.1vw,12px)", fontWeight: 700, padding: "1.5% 0", borderRadius: 3 }}>
+          <div key={i} style={{ width: `${40 + ((i + 1) / arr.length) * 55}%`, background: i === 0 ? CSS_COLORS.primary : CSS_COLORS.navyLight, color: "#fff", textAlign: "center", fontSize: "clamp(8px,1.1vw,12px)", fontWeight: 700, padding: "1.5% 0", borderRadius: 3 }}>
             {it}
           </div>
         ))}
@@ -256,7 +297,7 @@ function DiagramPreview({ diagram }: { diagram: NonNullable<SlideSpec["diagram"]
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3%", height: "100%" }}>
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} style={{ background: i % 3 === 0 ? CSS_COLORS.navy : CSS_COLORS.lightGray, color: i % 3 === 0 ? "#fff" : CSS_COLORS.navy, display: "grid", placeItems: "center", textAlign: "center", fontWeight: 700, fontSize: "clamp(8px,1.1vw,12px)", padding: "4%", borderRadius: 4 }}>
+        <div key={i} style={{ background: i % 3 === 0 ? CSS_COLORS.primary : CSS_COLORS.lightGray, border: `1px solid ${CSS_COLORS.border}`, color: i % 3 === 0 ? "#fff" : CSS_COLORS.text, display: "grid", placeItems: "center", textAlign: "center", fontWeight: 700, fontSize: "clamp(8px,1.1vw,12px)", padding: "4%", borderRadius: 4 }}>
           {items[i] ?? ""}
         </div>
       ))}

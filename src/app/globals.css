@@ -2,10 +2,10 @@
 @import "tailwindcss";
 
 :root {
-  --navy: #1f2a44;
-  --light-gray: #f2f4f7;
-  --mid-gray: #8a94a6;
-  --accent: #c8a45c;
+  --navy: #13294b;
+  --light-gray: #f4f6f8;
+  --mid-gray: #888888;
+  --accent: #1976d2;
   /* Meiryo UI first (Windows/Office), Noto Sans JP fallback elsewhere. */
   --slide-font: "Meiryo UI", "Meiryo", "Noto Sans JP", "Hiragino Kaku Gothic ProN",
     sans-serif;

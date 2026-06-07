@@ -16,9 +16,9 @@ const sample = `# EV充電事業の市場性・収益性分析
 
 ### 市場規模 :: 国内EV充電市場は2030年に5,000億円規模へ拡大する
 @kpi
-- 5,000億円 | 2030年市場規模
-- +22% | 年平均成長率(CAGR)
-- 30万基 | 想定設置基数
+- 5,000億円 | 2030年市場規模 | money
+- +22% | 年平均成長率(CAGR) | growth
+- 30万基 | 想定設置基数 | target
 
 ### 市場推移 :: 急速充電を中心に市場は一貫して拡大する
 @chart bar
@@ -30,9 +30,15 @@ note: ダミー値・要裏取り
 ## 参入論点
 
 ### 収益性 :: 収益性は立地と稼働率の確保に大きく依存する
-- 立地が稼働率を決定づける
+- [#target] 立地が稼働率を決定づける
   - 商業施設・幹線道路沿いが有利
-- 初期投資の回収には平均5〜7年を要する
+- [#time] 初期投資の回収には平均5〜7年を要する
+
+### シナリオ比較 :: 段階投資シナリオが投資効率の点で優位
+@table
+| 項目 | 一括投資 | 段階投資 |
+| 初期投資 | 大 | 小 |
+| 回収期間 | 7年 | 5年 |
 
 ### 機会と脅威 :: 政策追い風がある一方、競争激化への備えが要る
 @cols
@@ -54,7 +60,7 @@ async function main() {
   console.log(`slides: ${slides.length}`);
   slides.forEach((s, i) => console.log(`  ${i + 1}. [${s.layout}] ${s.title || s.lead}`));
 
-  const expected = ["title", "section-divider", "kpi", "chart", "section-divider", "bullets", "two-column", "diagram", "closing"];
+  const expected = ["title", "section-divider", "kpi", "chart", "section-divider", "bullets", "table", "two-column", "diagram", "closing"];
   const got = slides.map((s) => s.layout);
   const ok = expected.length === got.length && expected.every((e, i) => e === got[i]);
   if (!ok) {

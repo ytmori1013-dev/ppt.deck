@@ -41,6 +41,7 @@ export const SlideLayoutSchema = z.enum([
   "chart", // グラフ中心
   "diagram", // 図解
   "kpi", // 数値ハイライト
+  "table", // 表
   "image-full", // 画像全面（GPT画像など）
   "image-right", // 左テキスト＋右画像
   "closing", // 結び
@@ -50,6 +51,7 @@ export type SlideLayout = z.infer<typeof SlideLayoutSchema>;
 export const BulletSchema = z.object({
   text: z.string(),
   sub: z.array(z.string()).optional(),
+  icon: z.string().optional().describe("行頭アイコン名（例: check, growth, target）"),
 });
 
 export const ColumnSchema = z.object({
@@ -76,7 +78,15 @@ export const DiagramSchema = z.object({
 export const KpiSchema = z.object({
   value: z.string().describe("数値（例: 5,000億円, +32%）"),
   label: z.string().describe("数値の意味"),
+  caption: z.string().optional().describe("補足（任意・カード下部の小さな説明）"),
+  icon: z.string().optional().describe("アイコン名（例: time, money, check）"),
 });
+
+export const TableSchema = z.object({
+  headers: z.array(z.string()).describe("ヘッダ行のセル"),
+  rows: z.array(z.array(z.string())).describe("各データ行のセル配列"),
+});
+export type DeckTable = z.infer<typeof TableSchema>;
 
 export const ImageSchema = z.object({
   // data URL (data:image/png;base64,...) を基本とする。URL画像はブラウザ側で
@@ -95,6 +105,7 @@ export const SlideSpecSchema = z.object({
   chart: ChartSchema.optional(),
   diagram: DiagramSchema.optional(),
   kpis: z.array(KpiSchema).optional(),
+  table: TableSchema.optional(),
   image: ImageSchema.optional(),
   notes: z.string().optional().describe("スピーカーノート"),
 });

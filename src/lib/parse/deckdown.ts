@@ -19,7 +19,7 @@ import type { SlideSpec } from "../types";
  *   ---                            -> 明示的なスライド区切り
  */
 
-type Mode = "bullets" | "kpi" | "chart" | "cols" | "diagram" | "image";
+type Mode = "bullets" | "kpi" | "chart" | "cols" | "diagram" | "image" | "table";
 
 export interface ParsedDeck {
   title?: string;
@@ -120,6 +120,11 @@ export function parseDeckdown(input: string): ParsedDeck {
           slide.diagram = { type: diagramType(dir.arg), items: [] };
           mode = "diagram";
           break;
+        case "table":
+          slide.layout = "table";
+          slide.table = { headers: [], rows: [] };
+          mode = "table";
+          break;
         case "image":
           slide.layout = "image-full";
           slide.image = { src: dir.arg?.trim() || "" };
@@ -139,9 +144,20 @@ export function parseDeckdown(input: string): ParsedDeck {
       case "kpi": {
         const m = stripBullet(trimmed);
         if (m) {
-          const [value, label] = splitOnce(m, "|");
-          slide.kpis!.push({ value: value.trim(), label: (label ?? "").trim() });
+          const [value, label, icon] = m.split("|").map((p) => p.trim());
+          slide.kpis!.push({
+            value: value ?? "",
+            label: label ?? "",
+            ...(icon ? { icon } : {}),
+          });
         }
+        break;
+      }
+      case "table": {
+        const cells = parseTableRow(trimmed);
+        if (!cells) break; // separator row like |---|---|
+        if (slide.table!.headers.length === 0) slide.table!.headers = cells;
+        else slide.table!.rows.push(cells);
         break;
       }
       case "chart": {
@@ -187,7 +203,7 @@ export function parseDeckdown(input: string): ParsedDeck {
       case "bullets":
       default: {
         const isSub = /^\s{2,}[-*]\s/.test(line) || /^\t+[-*]\s/.test(line);
-        const text = stripBullet(trimmed);
+        const { text, icon } = extractIcon(stripBullet(trimmed));
         if (!text) break;
         slide.bullets = slide.bullets ?? [];
         if (isSub && slide.bullets.length > 0) {
@@ -195,7 +211,7 @@ export function parseDeckdown(input: string): ParsedDeck {
           last.sub = last.sub ?? [];
           last.sub.push(text);
         } else {
-          slide.bullets.push({ text });
+          slide.bullets.push({ text, ...(icon ? { icon } : {}) });
         }
         if (!slide.lead) slide.lead = text; // fallback if no ### headline given
       }
@@ -258,6 +274,24 @@ function stripBullet(s: string): string {
   return s.replace(/^[-*]\s?/, "").trim();
 }
 
+/** Pull a leading "[#icon]" marker off a bullet, if present. */
+function extractIcon(s: string): { text: string; icon?: string } {
+  const m = s.match(/^\[#([\w-]+)\]\s*/);
+  if (m) return { text: s.slice(m[0].length).trim(), icon: m[1] };
+  return { text: s };
+}
+
+/** Split a "| a | b |" (or "a | b") table row; null for separator rows. */
+function parseTableRow(s: string): string[] | null {
+  const cells = s
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((c) => c.trim());
+  if (cells.every((c) => /^:?-{2,}:?$/.test(c) || c === "")) return null;
+  return cells;
+}
+
 function imageUrl(s: string): string | null {
   const md = s.match(/!\[[^\]]*\]\(([^)]+)\)/);
   if (md) return md[1];
@@ -293,6 +327,7 @@ function cleanup(slides: SlideSpec[]): SlideSpec[] {
           s.chart ||
           s.diagram ||
           s.columns?.length ||
+          s.table?.headers.length ||
           s.image,
       );
     });
