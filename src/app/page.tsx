@@ -21,6 +21,8 @@ export default function Home() {
   const [instruction, setInstruction] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>(null);
+  const isMobile = useIsMobile();
+  const [navOpen, setNavOpen] = useState(false);
 
   // Restore / persist (IndexedDB — images can be large).
   useEffect(() => {
@@ -58,6 +60,7 @@ export default function Home() {
     setSlides(parsed.slides);
     setCurrent(0);
     flash(`${parsed.slides.length} スライドを生成しました`);
+    setNavOpen(false); // on mobile, reveal the result
   }
 
   function updateSlide(i: number, patch: Partial<SlideSpec>) {
@@ -112,6 +115,7 @@ export default function Home() {
       setSlides(slides);
       setCurrent(0);
       flash("AI下書きを生成しました");
+      setNavOpen(false);
     } catch (e) {
       flash(`AI生成に失敗: ${e instanceof Error ? e.message : ""}（APIキー未設定の可能性）`, "error");
     } finally {
@@ -160,15 +164,55 @@ export default function Home() {
     }
   }
 
+  const asideStyle: React.CSSProperties = isMobile
+    ? {
+        position: "fixed",
+        top: 0,
+        left: 0,
+        bottom: 0,
+        width: "min(88vw, 380px)",
+        zIndex: 50,
+        background: "#fff",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "auto",
+        borderRight: "1px solid #e2e6ee",
+        transform: navOpen ? "translateX(0)" : "translateX(-105%)",
+        transition: "transform .25s ease",
+        boxShadow: navOpen ? "0 0 40px rgba(31,42,68,.35)" : "none",
+      }
+    : {
+        width: 380,
+        flexShrink: 0,
+        borderRight: "1px solid #e2e6ee",
+        background: "#fff",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "auto",
+      };
+
   return (
-    <main style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+    <main style={{ display: "flex", height: "100dvh", overflow: "hidden", position: "relative" }}>
+      {/* Backdrop behind the mobile drawer */}
+      {isMobile && navOpen && (
+        <div
+          onClick={() => setNavOpen(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(31,42,68,.45)", zIndex: 40 }}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside style={{ width: 380, borderRight: "1px solid #e2e6ee", background: "#fff", display: "flex", flexDirection: "column", overflow: "auto" }}>
-        <div style={{ padding: "16px 18px", borderBottom: "1px solid #eef1f6" }}>
-          <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Consult Deck AI</h1>
-          <p style={{ fontSize: 12, color: "var(--mid-gray)", margin: "4px 0 0" }}>
-            Claudeのストーリー＋GPT画像を、ブランド固定のPPTへ
-          </p>
+      <aside style={asideStyle}>
+        <div style={{ padding: "16px 18px", borderBottom: "1px solid #eef1f6", display: "flex", alignItems: "flex-start", gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Consult Deck AI</h1>
+            <p style={{ fontSize: 12, color: "var(--mid-gray)", margin: "4px 0 0" }}>
+              Claudeのストーリー＋GPT画像を、ブランド固定のPPTへ
+            </p>
+          </div>
+          {isMobile && (
+            <button onClick={() => setNavOpen(false)} aria-label="閉じる" style={iconBtn}>✕</button>
+          )}
         </div>
 
         <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 18 }}>
@@ -219,14 +263,17 @@ export default function Home() {
       </aside>
 
       {/* Main */}
-      <section style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ height: 56, borderBottom: "1px solid #e2e6ee", background: "#fff", display: "flex", alignItems: "center", padding: "0 20px", gap: 14 }}>
-          <strong style={{ fontSize: 14 }}>{brief.title || "（無題）"}</strong>
-          <span style={{ fontSize: 12, color: "var(--mid-gray)" }}>{slides.length > 0 ? `${slides.length} スライド` : ""}</span>
+      <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ minHeight: 56, borderBottom: "1px solid #e2e6ee", background: "#fff", display: "flex", alignItems: "center", padding: isMobile ? "0 12px" : "0 20px", gap: isMobile ? 8 : 14 }}>
+          {isMobile && (
+            <button onClick={() => setNavOpen(true)} aria-label="メニュー" style={iconBtn}>☰</button>
+          )}
+          <strong style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: isMobile ? 140 : 360 }}>{brief.title || "（無題）"}</strong>
+          {!isMobile && <span style={{ fontSize: 12, color: "var(--mid-gray)" }}>{slides.length > 0 ? `${slides.length} スライド` : ""}</span>}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-            {busy && <span style={{ fontSize: 12, color: "var(--mid-gray)" }}>{busy}</span>}
-            <button style={{ ...btnPrimary, width: "auto", padding: "8px 16px", opacity: slides.length ? 1 : 0.5 }} onClick={exportPptx} disabled={!!busy || slides.length === 0}>
-              PowerPoint 出力
+            {busy && !isMobile && <span style={{ fontSize: 12, color: "var(--mid-gray)" }}>{busy}</span>}
+            <button style={{ ...btnPrimary, width: "auto", padding: "8px 16px", whiteSpace: "nowrap", opacity: slides.length ? 1 : 0.5 }} onClick={exportPptx} disabled={!!busy || slides.length === 0}>
+              {isMobile ? "PPT出力" : "PowerPoint 出力"}
             </button>
           </div>
         </div>
@@ -237,19 +284,25 @@ export default function Home() {
           </div>
         )}
 
-        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden" }}>
           {slides.length > 0 && (
-            <div style={{ width: 200, borderRight: "1px solid #e2e6ee", overflow: "auto", padding: 10, display: "flex", flexDirection: "column", gap: 8, background: "#fff" }}>
+            <div
+              style={
+                isMobile
+                  ? { borderBottom: "1px solid #e2e6ee", overflowX: "auto", overflowY: "hidden", padding: 8, display: "flex", flexDirection: "row", gap: 8, background: "#fff", flexShrink: 0 }
+                  : { width: 200, flexShrink: 0, borderRight: "1px solid #e2e6ee", overflow: "auto", padding: 10, display: "flex", flexDirection: "column", gap: 8, background: "#fff" }
+              }
+            >
               {slides.map((s, i) => (
-                <button key={i} onClick={() => setCurrent(i)} style={{ border: i === current ? "2px solid var(--navy)" : "1px solid #e2e6ee", borderRadius: 6, padding: 4, background: "transparent", cursor: "pointer" }}>
-                  <div style={{ fontSize: 10, color: "var(--mid-gray)", textAlign: "left", marginBottom: 2 }}>{i + 1}. {s.title || s.lead?.slice(0, 16)}</div>
+                <button key={i} onClick={() => setCurrent(i)} style={{ flexShrink: 0, width: isMobile ? 150 : "auto", border: i === current ? "2px solid var(--navy)" : "1px solid #e2e6ee", borderRadius: 6, padding: 4, background: "transparent", cursor: "pointer" }}>
+                  <div style={{ fontSize: 10, color: "var(--mid-gray)", textAlign: "left", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i + 1}. {s.title || s.lead?.slice(0, 16)}</div>
                   <div style={{ pointerEvents: "none" }}><SlidePreview spec={s} /></div>
                 </button>
               ))}
             </div>
           )}
 
-          <div style={{ flex: 1, overflow: "auto", padding: 28 }}>
+          <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: isMobile ? 14 : 28 }}>
             {slide ? (
               <div style={{ maxWidth: 900, margin: "0 auto" }}>
                 <div
@@ -314,6 +367,19 @@ function UrlAdder({ onAdd }: { onAdd: (url: string) => void }) {
   );
 }
 
+/** Tracks a max-width media query so the layout can switch to a mobile drawer. */
+function useIsMobile() {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 820px)");
+    const update = () => setMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return mobile;
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
@@ -354,4 +420,9 @@ const btnGhost: React.CSSProperties = {
 const btnSmall: React.CSSProperties = {
   background: "#fff", color: "var(--navy)", border: "1px solid #d8deea", borderRadius: 6,
   padding: "6px 10px", fontSize: 12, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4,
+};
+const iconBtn: React.CSSProperties = {
+  background: "#fff", color: "var(--navy)", border: "1px solid #d8deea", borderRadius: 8,
+  width: 38, height: 38, fontSize: 18, lineHeight: 1, cursor: "pointer", flexShrink: 0,
+  display: "inline-flex", alignItems: "center", justifyContent: "center",
 };

@@ -50,17 +50,23 @@ export function SlidePreview({ spec }: { spec: SlideSpec }) {
   // Content frame (shared header + footer)
   return (
     <div style={{ ...base, background: "#fff", padding: "5% 5.5%", display: "flex", flexDirection: "column" }}>
-      <div style={{ color: CSS_COLORS.accent, fontSize: "clamp(8px,1.1vw,11px)", fontWeight: 700, letterSpacing: 1.5 }}>
-        {spec.title.toUpperCase()}
+      <div style={{ display: "flex", alignItems: "center", gap: "1.2%" }}>
+        <span style={{ width: "0.9%", minWidth: 3, height: "1.3em", background: CSS_COLORS.accent, flexShrink: 0 }} />
+        <div style={{ color: CSS_COLORS.accent, fontSize: "clamp(8px,1.1vw,11px)", fontWeight: 700, letterSpacing: 2 }}>
+          {spec.title.toUpperCase()}
+        </div>
       </div>
-      <div style={{ color: CSS_COLORS.navy, fontSize: "clamp(12px,1.9vw,19px)", fontWeight: 700, lineHeight: 1.3, marginTop: "0.6%" }}>
+      <div style={{ color: CSS_COLORS.navy, fontSize: "clamp(12px,2vw,21px)", fontWeight: 700, lineHeight: 1.28, marginTop: "0.8%" }}>
         {spec.lead}
       </div>
-      <div style={{ height: 1, background: CSS_COLORS.lightGray, margin: "2.5% 0" }} />
+      {/* Two-tone rule: short gold over a full hairline. */}
+      <div style={{ position: "relative", height: 1.5, margin: "2.5% 0", background: CSS_COLORS.border }}>
+        <div style={{ position: "absolute", left: 0, top: 0, width: "12%", height: 2.5, background: CSS_COLORS.accent }} />
+      </div>
       <div style={{ flex: 1, minHeight: 0 }}>
         <Body spec={spec} />
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", color: CSS_COLORS.midGray, fontSize: "clamp(7px,0.9vw,9px)", marginTop: "2%" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${CSS_COLORS.border}`, paddingTop: "1.5%", color: CSS_COLORS.midGray, fontSize: "clamp(7px,0.9vw,9px)", marginTop: "2%" }}>
         <span>Consult Deck AI</span>
       </div>
     </div>
@@ -72,9 +78,30 @@ function Body({ spec }: { spec: SlideSpec }) {
     return (
       <div style={{ display: "flex", gap: "3%", height: "100%", alignItems: "center" }}>
         {spec.kpis.slice(0, 4).map((k, i) => (
-          <div key={i} style={{ flex: 1, background: CSS_COLORS.lightGray, borderRadius: 6, padding: "6% 4%", textAlign: "center" }}>
-            <div style={{ color: CSS_COLORS.navy, fontWeight: 700, fontSize: "clamp(16px,3vw,32px)" }}>{k.value}</div>
-            <div style={{ color: CSS_COLORS.midGray, fontSize: "clamp(8px,1.1vw,12px)", marginTop: "8%" }}>{k.label}</div>
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              alignSelf: "stretch",
+              maxHeight: "82%",
+              background: "#fff",
+              border: `1px solid ${CSS_COLORS.border}`,
+              borderRadius: 6,
+              boxShadow: "0 2px 6px rgba(31,42,68,0.10)",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "6% 4%",
+              textAlign: "center",
+              position: "relative",
+            }}
+          >
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "5%", minHeight: 3, background: CSS_COLORS.accent }} />
+            <div style={{ color: CSS_COLORS.navy, fontWeight: 700, fontSize: "clamp(16px,3.2vw,34px)", lineHeight: 1.05 }}>{k.value}</div>
+            <div style={{ width: "30%", height: 2, background: CSS_COLORS.accent, margin: "7% 0" }} />
+            <div style={{ color: CSS_COLORS.textGray, fontSize: "clamp(8px,1.1vw,12px)" }}>{k.label}</div>
           </div>
         ))}
       </div>
@@ -85,11 +112,16 @@ function Body({ spec }: { spec: SlideSpec }) {
     return (
       <div style={{ display: "flex", gap: "4%", height: "100%" }}>
         {spec.columns.slice(0, 2).map((col, i) => (
-          <div key={i} style={{ flex: 1 }}>
-            <div style={{ background: CSS_COLORS.lightGray, color: CSS_COLORS.navy, fontWeight: 700, fontSize: "clamp(9px,1.3vw,13px)", padding: "2% 4%", borderRadius: 4 }}>
-              {col.heading}
+          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+            <div style={{ display: "flex", alignItems: "stretch", borderRadius: "3px 3px 0 0", overflow: "hidden" }}>
+              <span style={{ width: "2.5%", minWidth: 3, background: CSS_COLORS.accent }} />
+              <div style={{ flex: 1, background: CSS_COLORS.navy, color: "#fff", fontWeight: 700, fontSize: "clamp(9px,1.3vw,13px)", padding: "2.5% 4%" }}>
+                {col.heading}
+              </div>
             </div>
-            <BulletList bullets={col.bullets} />
+            <div style={{ flex: 1, background: CSS_COLORS.lightGray, border: `1px solid ${CSS_COLORS.border}`, borderTop: "none", borderRadius: "0 0 3px 3px", padding: "2% 4%", minHeight: 0, overflow: "hidden" }}>
+              <BulletList bullets={col.bullets} />
+            </div>
           </div>
         ))}
       </div>
