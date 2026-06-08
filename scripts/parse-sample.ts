@@ -6,7 +6,8 @@
  *   bun run scripts/parse-sample.ts
  */
 import { writeFileSync, mkdirSync } from "node:fs";
-import { parseDeckdown, splitFreeText } from "../src/lib/parse/deckdown";
+import { parseDeckdown, splitFreeText, textToSlide } from "../src/lib/parse/deckdown";
+import { autoIllustrate } from "../src/lib/agents/enrich";
 import { renderDeckToPptx } from "../src/lib/render/pptx";
 
 const sample = `# EV充電事業の市場性・収益性分析
@@ -101,6 +102,62 @@ async function main() {
     process.exit(1);
   }
   console.log("OK: free-text parse (ordinals stripped, no number duplication)");
+
+  // --- Auto-illustration (free, deterministic native figures) -------------
+  // Numbers (colon-separated) -> KPI cards.
+  const kpiIn = splitFreeText(`市場規模
+売上高：5,000億円
+営業利益率：22%
+店舗数：30万件`).slides;
+  const kpiOut = autoIllustrate(kpiIn);
+  // Pipe-separated rows -> native table.
+  const tableOut = autoIllustrate(
+    splitFreeText(`シナリオ比較
+項目 | 一括投資 | 段階投資
+初期投資 | 大 | 小
+回収期間 | 7年 | 5年`).slides,
+  );
+  // Ordered steps -> process diagram.
+  const procOut = autoIllustrate(
+    splitFreeText(`参入ステップ
+1. 市場検証
+2. 拠点選定
+3. PoC設置
+4. 本格展開`).slides,
+  );
+  // Keyword -> icon on plain bullets.
+  const iconOut = autoIllustrate(
+    splitFreeText(`コスト構造
+電力コストが収益を左右する
+回収期間は平均5年`).slides,
+  );
+  console.log(`\nauto-illustrate: kpi=${kpiOut[0]?.layout} table=${tableOut[0]?.layout} process=${procOut[0]?.layout} icon=${iconOut[0]?.bullets?.[0]?.icon}`);
+  const enrichOk =
+    kpiOut[0]?.layout === "kpi" &&
+    (kpiOut[0]?.kpis?.length ?? 0) === 3 &&
+    tableOut[0]?.layout === "table" &&
+    (tableOut[0]?.table?.rows.length ?? 0) === 2 &&
+    procOut[0]?.layout === "diagram" &&
+    procOut[0]?.diagram?.type === "process" &&
+    (procOut[0]?.diagram?.items.length ?? 0) === 4 &&
+    iconOut[0]?.layout === "bullets" &&
+    !!iconOut[0]?.bullets?.some((b) => b.icon);
+  if (!enrichOk) {
+    console.error("AUTO-ILLUSTRATE MISMATCH", JSON.stringify({ kpiOut, procOut, iconOut }, null, 2));
+    process.exit(1);
+  }
+  console.log("OK: auto-illustrate (numbers->KPI, steps->process, keywords->icons)");
+
+  // --- textToSlide (OCR -> one editable slide) ----------------------------
+  const ocrSlide = textToSlide(`市場環境のまとめ
+EVシフトが充電需要を押し上げる
+法人需要が拡大している`);
+  console.log(`textToSlide: kicker="${ocrSlide.title}" lead="${ocrSlide.lead}" bullets=${ocrSlide.bullets?.length ?? 0}`);
+  if (ocrSlide.title !== "市場環境のまとめ" || !ocrSlide.lead) {
+    console.error("textToSlide MISMATCH");
+    process.exit(1);
+  }
+  console.log("OK: textToSlide (heading->kicker, body->lead+bullets)");
 }
 
 main().catch((e) => {

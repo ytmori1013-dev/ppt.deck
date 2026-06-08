@@ -241,17 +241,22 @@ export function parseDeckdown(input: string): ParsedDeck {
  */
 export function splitFreeText(input: string): ParsedDeck {
   const lines = input.replace(/\r\n/g, "\n").split("\n");
-  const hasHeadings = lines.some((l) => isHeading(l.trim()));
+
+  // Heading detection is context-aware: a single numbered line is a section
+  // heading ("#1 サマリー"), but a *run* of numbered lines is a step list and
+  // must stay together (so it can become one process figure, not N slides).
+  const headingAt = lines.map((l, i) => isHeadingStart(lines, i));
+  const hasHeadings = headingAt.some(Boolean);
 
   type Section = { heading: string; body: string[] };
   const sections: Section[] = [];
 
   if (hasHeadings) {
     let curSection: Section | null = null;
-    for (const raw of lines) {
+    lines.forEach((raw, i) => {
       const t = raw.trim();
-      if (!t) continue;
-      if (isHeading(t)) {
+      if (!t) return;
+      if (headingAt[i]) {
         curSection = { heading: t, body: [] };
         sections.push(curSection);
       } else if (curSection) {
@@ -261,7 +266,7 @@ export function splitFreeText(input: string): ParsedDeck {
         curSection = { heading: "", body: [t] };
         sections.push(curSection);
       }
-    }
+    });
   } else {
     for (const block of input.replace(/\r\n/g, "\n").split(/\n\s*\n/)) {
       const body = block.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -271,6 +276,28 @@ export function splitFreeText(input: string): ParsedDeck {
 
   const slides = sections.map((s) => buildFreeSlide(s.heading, s.body));
   return { slides: cleanup(slides) };
+}
+
+/**
+ * Structure a single blob of text (e.g. OCR output from one slide image) into
+ * one editable slide. The first short, sentence-less line is treated as the
+ * slide's heading/kicker; everything else becomes the body.
+ */
+export function textToSlide(raw: string): SlideSpec {
+  const lines = raw
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return { layout: "bullets", title: "", lead: "", bullets: [] };
+
+  // A heading-ish first line: explicit heading marker, or a short line with no
+  // sentence punctuation (typical of a slide's title bar).
+  const first = lines[0];
+  const headingLike = isHeading(first) || (first.length <= 24 && !/[。．.！!？?、,]/.test(first));
+  const heading = headingLike ? first : "";
+  const body = headingLike ? lines.slice(1) : lines;
+  return buildFreeSlide(heading, body);
 }
 
 /** Build one bullets slide from a heading line + its body lines. */
@@ -283,7 +310,9 @@ function buildFreeSlide(heading: string, bodyLines: string[]): SlideSpec {
   }
 
   const looksBulleted = (l: string) => /^([-*・‣–—●◦▪]|\d+[.)、])\s*/.test(l);
-  const strip = (l: string) => l.replace(/^([-*・‣–—●◦▪]|\d+[.)、])\s*/, "").trim();
+  // Strip symbol bullets, but KEEP a numeric ordinal ("1.") so a downstream
+  // step-list -> process figure can still tell the items are sequential.
+  const strip = (l: string) => l.replace(/^[-*・‣–—●◦▪]\s*/, "").trim();
 
   let lead: string;
   let bulletTexts: string[];
@@ -315,14 +344,48 @@ function buildFreeSlide(heading: string, bodyLines: string[]): SlideSpec {
   return { layout: "bullets", title: kicker, lead, bullets };
 }
 
-/** Does this line read like a heading / section title? */
+/** A bare numbered line like "1. 市場検証" / "15 次のステップ" (no leading #). */
+function isBareNumbered(t: string): boolean {
+  return /^\d+(\s*[.)、:：]|\s+)\S/.test(t) && !/^#/.test(t);
+}
+
+/** Does this line read like a heading / section title (no context needed)? */
 function isHeading(t: string): boolean {
   if (!t) return false;
-  if (/^#+\s*/.test(t)) return true; // markdown heading (any level)
-  if (/^#?\s*\d+(\s*[.)、:：]|\s+)\S/.test(t)) return true; // "#1 X", "1. X", "15 X"
+  if (/^#+\s*/.test(t)) return true; // markdown heading (any level) incl. "#1 X"
+  if (isBareNumbered(t)) return true; // "1. X", "15 X"
   if (/^[■◆▶【「]\s*\S/.test(t) && t.length <= 40) return true; // decorated short title (not ・●○, which are bullets)
   if (/^第\s*\d+\s*[章節部]/.test(t)) return true; // 第N章
   return false;
+}
+
+/**
+ * Context-aware heading test used for slide splitting. Same as isHeading, except
+ * a bare numbered line counts as a heading ONLY when it stands alone — a run of
+ * consecutive numbered lines is a step list and is kept inside one slide.
+ */
+function isHeadingStart(lines: string[], i: number): boolean {
+  const t = lines[i].trim();
+  if (!t) return false;
+  if (/^#+\s*/.test(t)) return true;
+  if (/^[■◆▶【「]\s*\S/.test(t) && t.length <= 40) return true;
+  if (/^第\s*\d+\s*[章節部]/.test(t)) return true;
+  if (isBareNumbered(t)) {
+    const prev = prevNonEmpty(lines, i);
+    const next = nextNonEmpty(lines, i);
+    if (isBareNumbered(prev) || isBareNumbered(next)) return false; // part of a list run
+    return true;
+  }
+  return false;
+}
+
+function prevNonEmpty(lines: string[], i: number): string {
+  for (let j = i - 1; j >= 0; j--) if (lines[j].trim()) return lines[j].trim();
+  return "";
+}
+function nextNonEmpty(lines: string[], i: number): string {
+  for (let j = i + 1; j < lines.length; j++) if (lines[j].trim()) return lines[j].trim();
+  return "";
 }
 
 /** Strip heading markers and a leading ordinal ("#15 次のステップ" -> "次のステップ"). */

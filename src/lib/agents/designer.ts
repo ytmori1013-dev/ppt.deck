@@ -20,15 +20,17 @@ function pickLayout(s: SlideSpec): SlideSpec["layout"] {
 
   // Repair content layouts to whatever data is actually present.
   if (s.image && s.image.src) {
-    // Keep image-right when there is supporting text; otherwise full-bleed.
+    // Keep image-right when there is supporting text alongside the picture.
     if (s.layout === "image-right" && (s.bullets?.length || s.columns?.length)) {
       return "image-right";
     }
-    return "image-full";
+    // Respect an explicit full-bleed choice; otherwise default to framed full.
+    return s.layout === "image-cover" ? "image-cover" : "image-full";
   }
   if (s.chart && s.chart.series.length > 0) return "chart";
   if (s.diagram && s.diagram.items.length > 0) return "diagram";
   if (s.kpis && s.kpis.length > 0) return "kpi";
+  if (s.table && s.table.headers.length > 0) return "table";
   if (s.columns && s.columns.length >= 2) return "two-column";
   return "bullets";
 }

@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { SlidePreview } from "@/components/SlidePreview";
-import { parseDeckdown, splitFreeText } from "@/lib/parse/deckdown";
+import { parseDeckdown, splitFreeText, textToSlide } from "@/lib/parse/deckdown";
+import { autoIllustrate } from "@/lib/agents/enrich";
+import { recognizeImage } from "@/lib/ocr";
 import { claudeStoryPrompt, gptImagePrompt } from "@/lib/prompts/templates";
 import { fileToDataUrl, urlToDataUrl } from "@/lib/image";
 import { loadDeck, saveDeck } from "@/lib/store/idb";
@@ -57,10 +59,32 @@ export default function Home() {
     const parsed = parseMode === "deckdown" ? parseDeckdown(raw) : splitFreeText(raw);
     if (parsed.slides.length === 0) return flash("スライドを抽出できませんでした", "error");
     if (parsed.title && !brief.title) setBrief({ ...brief, title: parsed.title });
-    setSlides(parsed.slides);
+    // Promote plain bullets into native KPI / process / table figures + icons.
+    const slides = autoIllustrate(parsed.slides);
+    setSlides(slides);
     setCurrent(0);
-    flash(`${parsed.slides.length} スライドを生成しました`);
+    flash(`${slides.length} スライドを生成しました`);
     setNavOpen(false); // on mobile, reveal the result
+  }
+
+  /** OCR the current slide's image into an editable text slide (free, client-side). */
+  async function ocrCurrent() {
+    if (!slide?.image?.src) return;
+    setBusy("画像から文字を抽出中… 0%");
+    try {
+      const text = await recognizeImage(slide.image.src, (st, p) => {
+        if (st === "recognizing text") setBusy(`画像から文字を抽出中… ${Math.round(p * 100)}%`);
+      });
+      if (!text.trim()) return flash("文字を検出できませんでした（画質をご確認ください）", "error");
+      const built = autoIllustrate([textToSlide(text)])[0];
+      // Replace the image slide with the editable result (drop the raster image).
+      updateSlide(current, { ...built, image: undefined });
+      flash("OCRで編集可能スライドにしました（精度は中程度・必要に応じて修正してください）");
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "OCRに失敗しました", "error");
+    } finally {
+      setBusy(null);
+    }
   }
 
   function updateSlide(i: number, patch: Partial<SlideSpec>) {
@@ -242,8 +266,11 @@ export default function Home() {
               <Toggle on={parseMode === "deckdown"} onClick={() => setParseMode("deckdown")}>記法</Toggle>
               <Toggle on={parseMode === "free"} onClick={() => setParseMode("free")}>自由テキスト</Toggle>
             </div>
-            <textarea style={{ ...inp, height: 160, fontFamily: "monospace", fontSize: 12 }} value={raw} onChange={(e) => setRaw(e.target.value)} placeholder={parseMode === "deckdown" ? "Claudeのdeckdown出力を貼り付け…" : "文章/箇条書きを貼り付け（自動分割）…"} />
+            <textarea style={{ ...inp, height: 160, fontFamily: "monospace", fontSize: 12 }} value={raw} onChange={(e) => setRaw(e.target.value)} placeholder={parseMode === "deckdown" ? "Claudeのdeckdown出力を貼り付け…" : "文章/箇条書き/メモを貼り付け（自動でスライド化）…"} />
             <button style={btnPrimary} onClick={parse} disabled={!!busy}>スライド化</button>
+            <p style={{ fontSize: 11, color: "var(--mid-gray)", margin: "4px 0 0" }}>
+              数値の羅列→KPIカード、順序→プロセス図、表組み→テーブル、に自動変換。アイコンも自動付与（すべて編集可能・キー不要）。
+            </p>
           </Section>
 
           {/* Step 3: AI optional */}
@@ -329,6 +356,7 @@ export default function Home() {
                       <button style={btnSmall} onClick={() => updateSlide(current, { layout: nextImageLayout(slide.layout) })}>
                         レイアウト: {imageLayoutLabel(slide.layout)}
                       </button>
+                      <button style={{ ...btnSmall, fontWeight: 700 }} disabled={!!busy} onClick={ocrCurrent}>🔍 画像から文字を抽出（OCR）</button>
                       <button style={{ ...btnSmall, color: "#a12" }} onClick={() => updateSlide(current, { image: undefined, layout: "bullets" })}>画像を削除</button>
                     </>
                   )}
@@ -345,11 +373,11 @@ export default function Home() {
               <div style={{ height: "100%", display: "grid", placeItems: "center", color: "var(--mid-gray)", textAlign: "center" }}>
                 <div style={{ maxWidth: 460 }}>
                   <p style={{ fontSize: 15, lineHeight: 1.7 }}>
-                    ① {isMobile ? <>左上の <strong>☰</strong> から</> : "左の"}依頼を埋めて<strong>「Claudeに貼るプロンプト」</strong>をコピー<br />
-                    ② Claudeの出力を <strong>「2. 貼り付けてスライド化」</strong><br />
-                    ③ <strong>GPT画像をドロップ</strong> → <strong>PowerPoint出力</strong>
+                    ① {isMobile ? <>左上の <strong>☰</strong> から</> : "左の"}依頼を埋めて<strong>「Claudeに貼るプロンプト」</strong>を自分のClaude/ChatGPTへ<br />
+                    ② 出力（または手元のメモ）を<strong>「2. 貼り付けてスライド化」</strong>→ 自動で図版化<br />
+                    ③ 画像があれば<strong>ドロップ→「文字を抽出（OCR）」</strong>で編集可能化 → <strong>PowerPoint出力</strong>
                   </p>
-                  <p style={{ fontSize: 12 }}>APIキー不要で使えます。</p>
+                  <p style={{ fontSize: 12 }}>すべてAPIキー不要・無料。OCRと図版化はブラウザ内で動作します。</p>
                 </div>
               </div>
             )}
