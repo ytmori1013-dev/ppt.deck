@@ -342,8 +342,8 @@ export default function Home() {
               <div style={{ height: "100%", display: "grid", placeItems: "center", color: "var(--mid-gray)", textAlign: "center" }}>
                 <div style={{ maxWidth: 460 }}>
                   <p style={{ fontSize: 15, lineHeight: 1.7 }}>
-                    ① 右上の依頼を埋めて<strong>「Claudeに貼るプロンプト」</strong>をコピー<br />
-                    ② Claudeの出力を <strong>②に貼り付けて「スライド化」</strong><br />
+                    ① {isMobile ? <>左上の <strong>☰</strong> から</> : "左の"}依頼を埋めて<strong>「Claudeに貼るプロンプト」</strong>をコピー<br />
+                    ② Claudeの出力を <strong>「2. 貼り付けてスライド化」</strong><br />
                     ③ <strong>GPT画像をドロップ</strong> → <strong>PowerPoint出力</strong>
                   </p>
                   <p style={{ fontSize: 12 }}>APIキー不要で使えます。</p>

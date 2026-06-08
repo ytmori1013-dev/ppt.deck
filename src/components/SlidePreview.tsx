@@ -236,12 +236,80 @@ function TablePreview({ table }: { table: NonNullable<SlideSpec["table"]> }) {
 }
 
 function ChartPreview({ chart }: { chart: NonNullable<SlideSpec["chart"]> }) {
-  const all = chart.series.flatMap((s) => s.values);
+  const palette = [CSS_COLORS.primary, CSS_COLORS.navyLight, CSS_COLORS.gray, CSS_COLORS.red];
+  const note = chart.note ? (
+    <div style={{ fontSize: "clamp(7px,0.85vw,9px)", color: CSS_COLORS.gray, fontStyle: "italic", marginTop: "2%" }}>※ {chart.note}</div>
+  ) : null;
+  const legend = chart.series.length > 1 || chart.type === "pie" ? (
+    <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "3%", marginTop: "2%", fontSize: "clamp(7px,0.9vw,10px)", color: CSS_COLORS.text }}>
+      {(chart.type === "pie" ? chart.categories : chart.series.map((s) => s.name)).map((name, i) => (
+        <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 9, height: 9, borderRadius: 2, background: palette[i % palette.length] }} />
+          {name}
+        </span>
+      ))}
+    </div>
+  ) : null;
+
+  // --- Pie -----------------------------------------------------------------
+  if (chart.type === "pie") {
+    const vals = chart.series[0]?.values ?? [];
+    const total = Math.max(1, vals.reduce((a, b) => a + Number(b || 0), 0));
+    let acc = 0;
+    const stops = vals.map((v, i) => {
+      const start = (acc / total) * 360;
+      acc += Number(v || 0);
+      const end = (acc / total) * 360;
+      return `${palette[i % palette.length]} ${start}deg ${end}deg`;
+    });
+    return (
+      <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <div style={{ flex: 1, display: "grid", placeItems: "center", minHeight: 0 }}>
+          <div style={{ aspectRatio: "1", height: "84%", maxWidth: "84%", borderRadius: "50%", background: `conic-gradient(${stops.join(",")})` }} />
+        </div>
+        {legend}
+        {note}
+      </div>
+    );
+  }
+
+  // --- Line ----------------------------------------------------------------
+  if (chart.type === "line") {
+    const all = chart.series.flatMap((s) => s.values.map(Number));
+    const max = Math.max(1, ...all);
+    const n = chart.categories.length;
+    const xAt = (i: number) => (n <= 1 ? 50 : (i / (n - 1)) * 100);
+    return (
+      <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: "100%", height: "100%" }}>
+            {chart.series.map((s, si) => (
+              <polyline
+                key={si}
+                fill="none"
+                stroke={palette[si % palette.length]}
+                strokeWidth={1.2}
+                vectorEffect="non-scaling-stroke"
+                points={s.values.map((v, i) => `${xAt(i)},${100 - (Number(v || 0) / max) * 92 - 4}`).join(" ")}
+              />
+            ))}
+          </svg>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "clamp(7px,0.9vw,10px)", color: CSS_COLORS.gray, marginTop: 3 }}>
+          {chart.categories.map((c, i) => <span key={i}>{c}</span>)}
+        </div>
+        {legend}
+        {note}
+      </div>
+    );
+  }
+
+  // --- Bar (default) -------------------------------------------------------
+  const all = chart.series.flatMap((s) => s.values.map(Number));
   const max = Math.max(1, ...all);
-  const palette = [CSS_COLORS.primary, CSS_COLORS.navyLight, CSS_COLORS.gray];
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <div style={{ flex: 1, display: "flex", alignItems: "flex-end", gap: "2%", paddingTop: "2%" }}>
+      <div style={{ flex: 1, display: "flex", alignItems: "flex-end", gap: "2%", paddingTop: "2%", minHeight: 0 }}>
         {chart.categories.map((cat, ci) => (
           <div key={ci} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
             <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: "85%" }}>
@@ -253,11 +321,12 @@ function ChartPreview({ chart }: { chart: NonNullable<SlideSpec["chart"]> }) {
                 />
               ))}
             </div>
-            <div style={{ fontSize: "clamp(7px,0.9vw,10px)", color: CSS_COLORS.midGray, marginTop: 3 }}>{cat}</div>
+            <div style={{ fontSize: "clamp(7px,0.9vw,10px)", color: CSS_COLORS.gray, marginTop: 3 }}>{cat}</div>
           </div>
         ))}
       </div>
-      {chart.note && <div style={{ fontSize: "clamp(7px,0.85vw,9px)", color: CSS_COLORS.midGray, fontStyle: "italic", marginTop: "2%" }}>※ {chart.note}</div>}
+      {legend}
+      {note}
     </div>
   );
 }
