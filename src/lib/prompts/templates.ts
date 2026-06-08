@@ -6,25 +6,8 @@ import type { DeckBrief, SlideSpec } from "../types";
  * user pastes into their own chat tools so the output matches deckdown syntax.
  */
 
-/** Prompt to paste into Claude so its story comes back in deckdown syntax. */
-export function claudeStoryPrompt(brief: Partial<DeckBrief>): string {
-  const pages = brief.pageCount ? `${brief.pageCount}ページ程度` : "適切な枚数";
-  return `あなたはBCG・マッキンゼー級の戦略コンサルタントです。
-以下の依頼に対する資料を、必ず下記の「deckdown記法」だけで出力してください（前置き・後書き不要）。
-
-# 依頼
-- タイトル: ${brief.title || "（タイトルを補完）"}
-- 目的: ${brief.purpose || "（目的を補完）"}
-- 想定読者: ${brief.audience || "経営会議"}
-- 分量: ${pages}
-- トーン: ${brief.tone || "論理的・端的・定量的"}
-
-# 品質ルール
-- 1スライド=1メッセージ。各 ### の見出しは「言い切りの結論」にする（事実羅列・体言止め禁止）。
-- 全体はMECE／ピラミッド構造（背景→課題→分析→打ち手→効果/提言）。
-- 数値は具体的に。不確かな数値は @chart の note に「ダミー値・要裏取り」と明記。
-
-# deckdown記法
+/** The deckdown syntax reference, shared by the prompt helpers below. */
+const DECKDOWN_SYNTAX = `# deckdown記法
 # 資料タイトル
 > サブタイトル（任意）
 
@@ -70,9 +53,54 @@ caption: 図のキャプション（任意）
 
 ### 提言（最後）
 @closing
-> 全体を一言で言い切る提言
+> 全体を一言で言い切る提言`;
+
+/** Prompt to paste into Claude so its story comes back in deckdown syntax. */
+export function claudeStoryPrompt(brief: Partial<DeckBrief>): string {
+  const pages = brief.pageCount ? `${brief.pageCount}ページ程度` : "適切な枚数";
+  return `あなたはBCG・マッキンゼー級の戦略コンサルタントです。
+以下の依頼に対する資料を、必ず下記の「deckdown記法」だけで出力してください（前置き・後書き不要）。
+
+# 依頼
+- タイトル: ${brief.title || "（タイトルを補完）"}
+- 目的: ${brief.purpose || "（目的を補完）"}
+- 想定読者: ${brief.audience || "経営会議"}
+- 分量: ${pages}
+- トーン: ${brief.tone || "論理的・端的・定量的"}
+
+# 品質ルール
+- 1スライド=1メッセージ。各 ### の見出しは「言い切りの結論」にする（事実羅列・体言止め禁止）。
+- 全体はMECE／ピラミッド構造（背景→課題→分析→打ち手→効果/提言）。
+- 数値は具体的に。不確かな数値は @chart の note に「ダミー値・要裏取り」と明記。
+
+${DECKDOWN_SYNTAX}
 
 上記の記法のみで、資料全体を出力してください。`;
+}
+
+/**
+ * Prompt that takes the user's RAW material (messy notes / a long doc) and asks
+ * their own Claude/ChatGPT to *condense* it into clean deckdown. This is the
+ * free way to get real summarisation/aggregation — the deterministic parser only
+ * formats, it does not think. Paste the result into the「記法」tab.
+ */
+export function claudeCondensePrompt(raw: string): string {
+  return `あなたはBCG・マッキンゼー級の戦略コンサルタントです。
+以下の【素材】を、経営会議向けの資料に「集約・要約」し、必ず下記の「deckdown記法」だけで出力してください（前置き・後書き不要）。
+
+# 集約ルール（最重要）
+- 素材を**そのまま転記しない**。重複・冗長を削り、要点を**統合**する。1スライド=1メッセージ。
+- 各 ### の見出しは「言い切りの結論」。事実の羅列・体言止め・コードブロック（\`\`\`）は禁止。
+- 全体を **10〜15枚程度に圧縮**。MECE／ピラミッド（背景→課題→分析→打ち手→効果/提言）。
+- 数値・固有名は具体的に残す。各スライドの箇条書きは3〜5点、各点は40字以内。
+- 数値比較は @kpi / @table、推移は @chart、手順は @diagram process、対比は @cols を積極活用。
+
+${DECKDOWN_SYNTAX}
+
+# 素材
+${raw || "（ここに素材を貼り付け）"}
+
+上記の記法のみで、集約済みの資料全体を出力してください。`;
 }
 
 /** Prompt to paste into ChatGPT (image gen) for one slide. */

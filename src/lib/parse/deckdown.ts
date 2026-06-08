@@ -27,7 +27,7 @@ export interface ParsedDeck {
 }
 
 export function parseDeckdown(input: string): ParsedDeck {
-  const lines = input.replace(/\r\n/g, "\n").split("\n");
+  const lines = stripCodeFences(input.replace(/\r\n/g, "\n")).split("\n");
   const slides: SlideSpec[] = [];
   let deckTitle: string | undefined;
   let section = "";
@@ -240,7 +240,8 @@ export function parseDeckdown(input: string): ParsedDeck {
  * on blank lines so a loose outline still produces one slide per block.
  */
 export function splitFreeText(input: string): ParsedDeck {
-  const lines = input.replace(/\r\n/g, "\n").split("\n");
+  const src = stripCodeFences(input.replace(/\r\n/g, "\n"));
+  const lines = src.split("\n");
 
   // Heading detection is context-aware: a single numbered line is a section
   // heading ("#1 サマリー"), but a *run* of numbered lines is a step list and
@@ -268,7 +269,7 @@ export function splitFreeText(input: string): ParsedDeck {
       }
     });
   } else {
-    for (const block of input.replace(/\r\n/g, "\n").split(/\n\s*\n/)) {
+    for (const block of src.split(/\n\s*\n/)) {
       const body = block.split("\n").map((l) => l.trim()).filter(Boolean);
       if (body.length) sections.push({ heading: "", body });
     }
@@ -284,8 +285,7 @@ export function splitFreeText(input: string): ParsedDeck {
  * slide's heading/kicker; everything else becomes the body.
  */
 export function textToSlide(raw: string): SlideSpec {
-  const lines = raw
-    .replace(/\r\n/g, "\n")
+  const lines = stripCodeFences(raw.replace(/\r\n/g, "\n"))
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
@@ -333,6 +333,17 @@ function buildFreeSlide(heading: string, bodyLines: string[]): SlideSpec {
     // Several plain lines: first is the message, the rest are points.
     lead = bodyLines[0];
     bulletTexts = bodyLines.slice(1).map(strip);
+  }
+
+  // The headline must stay short. If the chosen lead is a long paragraph, keep
+  // only its first chunk as the message and push the remainder into bullets.
+  const MAX_LEAD = 64;
+  if (lead.length > MAX_LEAD) {
+    const parts = toSentences(lead);
+    if (parts.length > 1) {
+      lead = parts[0];
+      bulletTexts = [...parts.slice(1), ...bulletTexts];
+    }
   }
 
   const bullets = bulletTexts
@@ -398,12 +409,43 @@ function stripHeading(t: string): string {
     .trim();
 }
 
-/** Split Japanese/English prose into sentences (keeps 。! ?), trimming empties. */
+/** Split Japanese/English prose into sentences (keeps 。! ?), trimming empties.
+ *  Long, punctuation-poor clauses are further broken on 、 / spaces so a wall of
+ *  text becomes several digestible chunks instead of one run-on line. */
 function toSentences(text: string): string[] {
-  return text
-    .split(/(?<=[。！？!?])\s*/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const CHUNK = 60;
+  const out: string[] = [];
+  for (const s of text.split(/(?<=[。！？!?])\s*/)) {
+    const t = s.trim();
+    if (!t) continue;
+    if (t.length <= CHUNK) {
+      out.push(t);
+      continue;
+    }
+    // Too long: break on 、，/ full-width or double spaces, packing up to CHUNK.
+    let buf = "";
+    for (const part of t.split(/(?<=[、，])\s*|　+|\s{2,}/)) {
+      const p = part.trim();
+      if (!p) continue;
+      if (buf && (buf + p).length > CHUNK) {
+        out.push(buf);
+        buf = p;
+      } else {
+        buf = buf ? `${buf} ${p}` : p;
+      }
+    }
+    if (buf) out.push(buf);
+  }
+  return out;
+}
+
+/** Remove markdown code fences (```lang / ```) and stray backticks that would
+ *  otherwise be dumped verbatim into slides when raw markdown is pasted. */
+function stripCodeFences(s: string): string {
+  return s
+    .replace(/^[ \t]*```[^\n]*$/gm, "") // whole fence lines
+    .replace(/```[a-zA-Z0-9]*/g, "") // fences glued to text, e.g. "```text 目的…"
+    .replace(/`+/g, ""); // remaining inline-code backticks
 }
 
 // --- helpers --------------------------------------------------------------

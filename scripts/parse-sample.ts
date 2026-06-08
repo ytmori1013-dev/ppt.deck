@@ -158,6 +158,24 @@ EVシフトが充電需要を押し上げる
     process.exit(1);
   }
   console.log("OK: textToSlide (heading->kicker, body->lead+bullets)");
+
+  // --- Messy markdown (code fences + run-on paragraph) --------------------
+  const messy = `## 内容
+\`\`\`text
+目的 社内機会を可視化し、社員のスキル・志向・経験と接続することで、応募・配置判断を高度化できるかを検証する 関連データ 職務経験、スキル、キャリア志向、応募履歴、評価情報 関連施策 ポストチャレンジ、社内トレーニー、Meetup
+\`\`\``;
+  const ms = splitFreeText(messy).slides[0];
+  console.log(`messy: kicker="${ms.title}" lead.len=${ms.lead.length} bullets=${ms.bullets?.length ?? 0}`);
+  const messyOk =
+    ms.title === "内容" &&
+    !/```|text 目的/.test(ms.lead) && // code fence stripped, not glued
+    ms.lead.length <= 64 && // headline is not the whole paragraph
+    (ms.bullets?.length ?? 0) >= 1; // overflow went to bullets
+  if (!messyOk) {
+    console.error("MESSY MARKDOWN MISMATCH", JSON.stringify(ms, null, 2));
+    process.exit(1);
+  }
+  console.log("OK: messy markdown (fences stripped, headline capped, body->bullets)");
 }
 
 main().catch((e) => {

@@ -5,7 +5,7 @@ import { SlidePreview } from "@/components/SlidePreview";
 import { parseDeckdown, splitFreeText, textToSlide } from "@/lib/parse/deckdown";
 import { autoIllustrate } from "@/lib/agents/enrich";
 import { recognizeImage } from "@/lib/ocr";
-import { claudeStoryPrompt, gptImagePrompt } from "@/lib/prompts/templates";
+import { claudeStoryPrompt, claudeCondensePrompt, gptImagePrompt } from "@/lib/prompts/templates";
 import { fileToDataUrl, urlToDataUrl } from "@/lib/image";
 import { loadDeck, saveDeck } from "@/lib/store/idb";
 import type { DeckBrief, SlideSpec } from "@/lib/types";
@@ -268,8 +268,13 @@ export default function Home() {
             </div>
             <textarea style={{ ...inp, height: 160, fontFamily: "monospace", fontSize: 12 }} value={raw} onChange={(e) => setRaw(e.target.value)} placeholder={parseMode === "deckdown" ? "Claudeのdeckdown出力を貼り付け…" : "文章/箇条書き/メモを貼り付け（自動でスライド化）…"} />
             <button style={btnPrimary} onClick={parse} disabled={!!busy}>スライド化</button>
-            <p style={{ fontSize: 11, color: "var(--mid-gray)", margin: "4px 0 0" }}>
-              数値の羅列→KPIカード、順序→プロセス図、表組み→テーブル、に自動変換。アイコンも自動付与（すべて編集可能・キー不要）。
+            <button style={btnGhost} onClick={() => copy(claudeCondensePrompt(raw), "集約プロンプト")} disabled={!raw.trim()}>
+              📋 この素材を集約（Claude用プロンプト）
+            </button>
+            <p style={{ fontSize: 11, color: "var(--mid-gray)", margin: "4px 0 0", lineHeight: 1.5 }}>
+              <strong>整形のみ・要約はしません。</strong>生の資料はそのまま刻まれるだけです。<br />
+              要点に「集約」したい時は ↑ で素材入りプロンプトをコピー→自分のClaude/ChatGPTへ→返ってきた記法を「記法」タブに貼り付け。<br />
+              整形では、数値→KPI・順序→プロセス図・表組み→テーブルに自動変換（編集可能・キー不要）。
             </p>
           </Section>
 
