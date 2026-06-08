@@ -223,29 +223,124 @@ export function parseDeckdown(input: string): ParsedDeck {
 }
 
 /**
- * Free-text fallback: split arbitrary prose/outline into bullets slides when
- * the user pastes something that isn't deckdown. Heuristic, lower fidelity.
+ * Free-text fallback: split arbitrary prose/outline into slides when the user
+ * pastes something that isn't deckdown. Heuristic, but tuned for the common
+ * "numbered heading + paragraph" shape people paste from ChatGPT/Word, e.g.
+ *
+ *   #1 エグゼクティブサマリー
+ *   合併により…という結論。要点は次の通り。
+ *   ・コスト削減 30%
+ *   ・統合は18か月で完了
+ *
+ * Strategy: detect heading lines (markdown #, "1." / "#1" / "15 …" numbered,
+ * ■●◆ decorated, 第N章) and start a new slide at each. The heading becomes the
+ * kicker (with its ordinal stripped — this is what caused the "15 / 15" double
+ * number before); the first body sentence becomes the governing headline; the
+ * rest become bullets. When there are no headings at all, fall back to splitting
+ * on blank lines so a loose outline still produces one slide per block.
  */
 export function splitFreeText(input: string): ParsedDeck {
-  const blocks = input
-    .replace(/\r\n/g, "\n")
-    .split(/\n\s*\n/)
-    .map((b) => b.trim())
-    .filter(Boolean);
+  const lines = input.replace(/\r\n/g, "\n").split("\n");
+  const hasHeadings = lines.some((l) => isHeading(l.trim()));
 
-  const slides: SlideSpec[] = blocks.map((block) => {
-    const ls = block.split("\n").map((l) => l.trim()).filter(Boolean);
-    const lead = ls[0].replace(/^[#>\-*\s]+/, "");
-    const rest = ls.slice(1).map((l) => l.replace(/^[-*]\s?/, ""));
-    return {
-      layout: "bullets",
-      title: "",
-      lead,
-      bullets: rest.length ? rest.map((t) => ({ text: t })) : [{ text: lead }],
-    };
-  });
+  type Section = { heading: string; body: string[] };
+  const sections: Section[] = [];
 
+  if (hasHeadings) {
+    let curSection: Section | null = null;
+    for (const raw of lines) {
+      const t = raw.trim();
+      if (!t) continue;
+      if (isHeading(t)) {
+        curSection = { heading: t, body: [] };
+        sections.push(curSection);
+      } else if (curSection) {
+        curSection.body.push(t);
+      } else {
+        // preamble before the first heading -> its own headless section
+        curSection = { heading: "", body: [t] };
+        sections.push(curSection);
+      }
+    }
+  } else {
+    for (const block of input.replace(/\r\n/g, "\n").split(/\n\s*\n/)) {
+      const body = block.split("\n").map((l) => l.trim()).filter(Boolean);
+      if (body.length) sections.push({ heading: "", body });
+    }
+  }
+
+  const slides = sections.map((s) => buildFreeSlide(s.heading, s.body));
   return { slides: cleanup(slides) };
+}
+
+/** Build one bullets slide from a heading line + its body lines. */
+function buildFreeSlide(heading: string, bodyLines: string[]): SlideSpec {
+  const kicker = stripHeading(heading);
+
+  // No body: the heading itself is the single message of the slide.
+  if (bodyLines.length === 0) {
+    return { layout: "bullets", title: "", lead: kicker, bullets: [] };
+  }
+
+  const looksBulleted = (l: string) => /^([-*・‣–—●◦▪]|\d+[.)、])\s*/.test(l);
+  const strip = (l: string) => l.replace(/^([-*・‣–—●◦▪]|\d+[.)、])\s*/, "").trim();
+
+  let lead: string;
+  let bulletTexts: string[];
+
+  if (bodyLines.some(looksBulleted)) {
+    // Explicit list: text before the first bullet is the lead; bullets are bullets.
+    const firstBullet = bodyLines.findIndex(looksBulleted);
+    const leadLines = bodyLines.slice(0, firstBullet).map(strip).filter(Boolean);
+    lead = leadLines.join(" ") || kicker;
+    bulletTexts = bodyLines.slice(firstBullet).filter(looksBulleted).map(strip);
+  } else if (bodyLines.length === 1) {
+    // A single prose paragraph: split into sentences so the slide has substance
+    // instead of one long run-on line.
+    const sents = toSentences(bodyLines[0]);
+    lead = sents[0] ?? bodyLines[0];
+    bulletTexts = sents.slice(1);
+  } else {
+    // Several plain lines: first is the message, the rest are points.
+    lead = bodyLines[0];
+    bulletTexts = bodyLines.slice(1).map(strip);
+  }
+
+  const bullets = bulletTexts
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .slice(0, 7)
+    .map((text) => ({ text }));
+
+  return { layout: "bullets", title: kicker, lead, bullets };
+}
+
+/** Does this line read like a heading / section title? */
+function isHeading(t: string): boolean {
+  if (!t) return false;
+  if (/^#+\s*/.test(t)) return true; // markdown heading (any level)
+  if (/^#?\s*\d+(\s*[.)、:：]|\s+)\S/.test(t)) return true; // "#1 X", "1. X", "15 X"
+  if (/^[■◆▶【「]\s*\S/.test(t) && t.length <= 40) return true; // decorated short title (not ・●○, which are bullets)
+  if (/^第\s*\d+\s*[章節部]/.test(t)) return true; // 第N章
+  return false;
+}
+
+/** Strip heading markers and a leading ordinal ("#15 次のステップ" -> "次のステップ"). */
+function stripHeading(t: string): string {
+  return t
+    .replace(/^#+\s*/, "") // markdown #
+    .replace(/^[■●◆▶▪【「○]\s*/, "") // decoration
+    .replace(/[】」]\s*$/, "")
+    .replace(/^\d+(\s*[.)、:：]\s*|\s+)/, "") // ordinal: needs a separator so "2025年" survives
+    .trim();
+}
+
+/** Split Japanese/English prose into sentences (keeps 。! ?), trimming empties. */
+function toSentences(text: string): string[] {
+  return text
+    .split(/(?<=[。！？!?])\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 // --- helpers --------------------------------------------------------------

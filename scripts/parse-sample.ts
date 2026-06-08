@@ -6,7 +6,7 @@
  *   bun run scripts/parse-sample.ts
  */
 import { writeFileSync, mkdirSync } from "node:fs";
-import { parseDeckdown } from "../src/lib/parse/deckdown";
+import { parseDeckdown, splitFreeText } from "../src/lib/parse/deckdown";
 import { renderDeckToPptx } from "../src/lib/render/pptx";
 
 const sample = `# EV充電事業の市場性・収益性分析
@@ -72,6 +72,35 @@ async function main() {
   mkdirSync("tmp", { recursive: true });
   writeFileSync("tmp/parsed.pptx", buf);
   console.log(`OK: parsed deckdown -> tmp/parsed.pptx (${buf.length} bytes)`);
+
+  // --- Free-text fallback (the "pasted from ChatGPT" shape) ---------------
+  const free = `#1 エグゼクティブサマリー
+合併により売上は1.5倍に拡大する。統合効果は3年で発現する。
+・コスト削減は年間30億円
+・組織統合は18か月で完了
+
+15 次のステップ
+来月までに統合計画を確定する。`;
+  const ft = splitFreeText(free);
+  console.log(`\nfree-text slides: ${ft.slides.length}`);
+  ft.slides.forEach((s, i) =>
+    console.log(`  ${i + 1}. kicker="${s.title}" lead="${s.lead}" bullets=${s.bullets?.length ?? 0}`),
+  );
+  const s1 = ft.slides[0];
+  const s2 = ft.slides[1];
+  // Ordinals must be stripped from kickers, and the kicker must not equal the lead
+  // (that was the old duplicated-number bug).
+  const freeOk =
+    ft.slides.length === 2 &&
+    s1.title === "エグゼクティブサマリー" &&
+    s1.lead !== s1.title &&
+    (s1.bullets?.length ?? 0) >= 2 &&
+    s2.title === "次のステップ";
+  if (!freeOk) {
+    console.error("FREE-TEXT PARSE MISMATCH");
+    process.exit(1);
+  }
+  console.log("OK: free-text parse (ordinals stripped, no number duplication)");
 }
 
 main().catch((e) => {

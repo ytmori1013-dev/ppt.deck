@@ -42,7 +42,8 @@ export const SlideLayoutSchema = z.enum([
   "diagram", // 図解
   "kpi", // 数値ハイライト
   "table", // 表
-  "image-full", // 画像全面（GPT画像など）
+  "image-cover", // 画像をスライド全面に（ヘッダ無し・GPT参考スライドなど）
+  "image-full", // 画像全面（見出し付き）
   "image-right", // 左テキスト＋右画像
   "closing", // 結び
 ]);

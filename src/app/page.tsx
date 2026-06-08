@@ -69,8 +69,11 @@ export default function Home() {
 
   async function attachImage(src: string) {
     if (!slide) return;
+    // Default to full-bleed: a pasted picture (e.g. a GPT-made reference slide)
+    // becomes the whole slide. If the slide already has its own text, keep that
+    // visible by putting the image alongside it instead.
     const nextLayout: SlideSpec["layout"] =
-      slide.bullets?.length || slide.columns?.length ? "image-right" : "image-full";
+      slide.bullets?.length || slide.columns?.length ? "image-right" : "image-cover";
     updateSlide(current, { image: { ...(slide.image ?? {}), src }, layout: nextLayout });
     flash("画像を追加しました");
   }
@@ -323,8 +326,8 @@ export default function Home() {
                   <button style={btnSmall} onClick={() => copy(gptImagePrompt(slide), "GPT用画像プロンプト")}>📋 GPT画像プロンプト</button>
                   {slide.image?.src && (
                     <>
-                      <button style={btnSmall} onClick={() => updateSlide(current, { layout: slide.layout === "image-right" ? "image-full" : "image-right" })}>
-                        レイアウト: {slide.layout === "image-right" ? "右配置" : "全面"}
+                      <button style={btnSmall} onClick={() => updateSlide(current, { layout: nextImageLayout(slide.layout) })}>
+                        レイアウト: {imageLayoutLabel(slide.layout)}
                       </button>
                       <button style={{ ...btnSmall, color: "#a12" }} onClick={() => updateSlide(current, { image: undefined, layout: "bullets" })}>画像を削除</button>
                     </>
@@ -365,6 +368,29 @@ function UrlAdder({ onAdd }: { onAdd: (url: string) => void }) {
       <button style={btnSmall} onClick={() => { onAdd(ref.current?.value ?? ""); if (ref.current) ref.current.value = ""; }}>追加</button>
     </span>
   );
+}
+
+/** Cycle a slide image through the three placements: full → right → 余白付き全面. */
+function nextImageLayout(layout: SlideSpec["layout"]): SlideSpec["layout"] {
+  switch (layout) {
+    case "image-cover":
+      return "image-right";
+    case "image-right":
+      return "image-full";
+    default:
+      return "image-cover";
+  }
+}
+
+function imageLayoutLabel(layout: SlideSpec["layout"]): string {
+  switch (layout) {
+    case "image-right":
+      return "右配置";
+    case "image-full":
+      return "余白付き全面";
+    default:
+      return "全面";
+  }
 }
 
 /** Tracks a max-width media query so the layout can switch to a mobile drawer. */

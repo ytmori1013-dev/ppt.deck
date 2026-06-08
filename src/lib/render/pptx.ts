@@ -44,8 +44,12 @@ function addContentFrame(
     fill: { color: COLORS.primary },
   });
 
-  // Kicker label
-  slide.addText(spec.title.toUpperCase(), {
+  // Kicker label. Uppercasing only helps short ASCII labels; for Japanese it
+  // does nothing useful, and wide letter-spacing on CJK looks broken, so we
+  // tune both to the script.
+  const kicker = spec.title.trim();
+  const isAscii = /^[\x00-\x7F]*$/.test(kicker);
+  slide.addText(isAscii ? kicker.toUpperCase() : kicker, {
     x: CANVAS.marginX + 0.3,
     y: CANVAS.marginTop,
     w: CONTENT_W - 0.3,
@@ -54,7 +58,7 @@ function addContentFrame(
     fontSize: SIZE.kicker,
     bold: true,
     color: COLORS.primary,
-    charSpacing: 2.5,
+    charSpacing: isAscii ? 2.5 : 0.5,
     align: "left",
     valign: "middle",
   });
@@ -681,6 +685,28 @@ function renderImageRight(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: n
   });
 }
 
+/** Full-bleed image: the whole slide IS the image (no header/footer). Used for
+ *  GPT-made reference slides where the picture already is a finished slide. */
+function renderImageCover(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, pageNo: number) {
+  const img = spec.image;
+  if (!img?.src) {
+    // No image yet — fall back to a normal framed slide so nothing renders blank.
+    const top = addContentFrame(pptx, slide, spec, pageNo);
+    return renderBullets(pptx, slide, spec, top);
+  }
+  // White backdrop so a non-16:9 image is letterboxed cleanly rather than
+  // stretched. Edge-to-edge, no margins.
+  slide.background = { color: COLORS.white };
+  slide.addImage({
+    data: img.src,
+    x: 0,
+    y: 0,
+    w: CANVAS.w,
+    h: CANVAS.h,
+    sizing: { type: "contain", w: CANVAS.w, h: CANVAS.h },
+  });
+}
+
 function renderClosing(pptx: PptxGenJS, slide: Slide, spec: SlideSpec) {
   slide.background = { color: COLORS.primaryDark };
   slide.addShape(pptx.ShapeType.line, {
@@ -716,6 +742,8 @@ function renderSlide(pptx: PptxGenJS, spec: SlideSpec, pageNo: number) {
       return renderSectionDivider(pptx, slide, spec);
     case "closing":
       return renderClosing(pptx, slide, spec);
+    case "image-cover":
+      return renderImageCover(pptx, slide, spec, pageNo);
   }
 
   // Content layouts share the header/footer frame.

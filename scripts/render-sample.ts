@@ -110,6 +110,12 @@ const deck: Deck = {
       image: { src: TINY_PNG, caption: "サンプル画像" },
     },
     {
+      layout: "image-cover",
+      title: "参考スライド",
+      lead: "GPTで作った参考スライドはそのまま全面に",
+      image: { src: TINY_PNG },
+    },
+    {
       layout: "closing",
       title: "結び",
       lead: "立地戦略を磨けば、EV充電事業は十分な収益機会となる",

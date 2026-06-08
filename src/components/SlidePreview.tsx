@@ -40,6 +40,21 @@ export function SlidePreview({ spec }: { spec: SlideSpec }) {
     );
   }
 
+  if (spec.layout === "image-cover") {
+    return (
+      <div style={{ ...base, background: "#fff", display: "grid", placeItems: "center" }}>
+        {spec.image?.src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={spec.image.src} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+        ) : (
+          <div style={{ display: "grid", placeItems: "center", width: "92%", height: "88%", border: `1.5px dashed ${CSS_COLORS.midGray}`, borderRadius: 6, color: CSS_COLORS.midGray, fontSize: "clamp(8px,1.1vw,12px)", textAlign: "center", padding: "4%" }}>
+            画像をドロップ / 貼り付け（スライド全面に配置されます）
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (spec.layout === "closing") {
     return (
       <div style={{ ...base, background: CSS_COLORS.navy, display: "grid", placeItems: "center", padding: "8%", textAlign: "center" }}>
@@ -53,8 +68,8 @@ export function SlidePreview({ spec }: { spec: SlideSpec }) {
     <div style={{ ...base, background: "#fff", padding: "5% 5.5%", display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "1.2%" }}>
         <span style={{ width: "0.9%", minWidth: 3, height: "1.3em", background: CSS_COLORS.accent, flexShrink: 0 }} />
-        <div style={{ color: CSS_COLORS.accent, fontSize: "clamp(8px,1.1vw,11px)", fontWeight: 700, letterSpacing: 2 }}>
-          {spec.title.toUpperCase()}
+        <div style={{ color: CSS_COLORS.accent, fontSize: "clamp(8px,1.1vw,11px)", fontWeight: 700, letterSpacing: /^[\x00-\x7F]*$/.test(spec.title) ? 2 : 0.5 }}>
+          {/^[\x00-\x7F]*$/.test(spec.title) ? spec.title.toUpperCase() : spec.title}
         </div>
       </div>
       <div style={{ color: CSS_COLORS.navy, fontSize: "clamp(12px,2vw,21px)", fontWeight: 700, lineHeight: 1.28, marginTop: "0.8%" }}>
