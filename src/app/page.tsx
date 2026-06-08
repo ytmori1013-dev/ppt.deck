@@ -161,6 +161,25 @@ export default function Home() {
     }
   }
 
+  /** Reconstruct the current slide's image into editable native slides via Claude vision. */
+  async function aiVision() {
+    if (!slide?.image?.src) return;
+    setBusy("AIで画像を読み取り中…（要APIキー）");
+    try {
+      const { slides: built } = await call<{ slides: SlideSpec[] }>("/api/vision", {
+        image: slide.image.src,
+      });
+      if (!built?.length) return flash("画像から内容を再構築できませんでした", "error");
+      // Replace the image slide with the reconstructed (editable) slide(s).
+      setSlides((prev) => [...prev.slice(0, current), ...built, ...prev.slice(current + 1)]);
+      flash(`AIで${built.length}枚の編集可能スライドに再構築しました`);
+    } catch (e) {
+      flash(`AI読み取りに失敗: ${e instanceof Error ? e.message : ""}（APIキー未設定の可能性）`, "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function updateSlide(i: number, patch: Partial<SlideSpec>) {
     setSlides((prev) => prev.map((s, j) => (j === i ? { ...s, ...patch } : s)));
   }
@@ -463,7 +482,8 @@ export default function Home() {
                       <button style={btnSmall} onClick={() => updateSlide(current, { layout: nextImageLayout(slide.layout) })}>
                         レイアウト: {imageLayoutLabel(slide.layout)}
                       </button>
-                      <button style={{ ...btnSmall, fontWeight: 700 }} disabled={!!busy} onClick={ocrCurrent}>🔍 画像から文字を抽出（OCR）</button>
+                      <button style={{ ...btnSmall, fontWeight: 700, background: "#eef4ff", borderColor: "#cfe0ff" }} disabled={!!busy} onClick={aiVision}>🤖 AIで読み取り→編集可能（要APIキー）</button>
+                      <button style={btnSmall} disabled={!!busy} onClick={ocrCurrent}>🔍 無料OCR（文字のみ）</button>
                       <button style={{ ...btnSmall, color: "#a12" }} onClick={() => updateSlide(current, { image: undefined, layout: "bullets" })}>画像を削除</button>
                     </>
                   )}

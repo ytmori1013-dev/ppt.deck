@@ -91,7 +91,16 @@ bun run dev     # http://localhost:3000
 
 ### AI生成（任意・要APIキー）
 
-`.env` に `ANTHROPIC_API_KEY` を設定すると、サイドバー「3. AI」で **下書き自動生成**・**チャット修正**が使えます（トークン課金あり）。完全無料で動かしたい場合は [`src/lib/llm.ts`](src/lib/llm.ts) の `getModel()` をローカルLLM(Ollama等)に差し替え。
+`ANTHROPIC_API_KEY` を設定すると、AIによる **下書き自動生成**・**チャット修正**・**画像のVision読み取り（画像→編集可能スライドに再構築）** が使えます（トークン課金あり）。
+
+**Vercelでの有効化手順:**
+1. [Anthropic Console](https://console.anthropic.com/) でAPIキーを発行し、$5以上をチャージ（従量・前払い）。
+2. Vercel → プロジェクト → **Settings → Environment Variables** に `ANTHROPIC_API_KEY` を追加（任意で `CONSULT_DECK_MODEL`、既定 `claude-sonnet-4-6`）。
+3. 再デプロイ（Deployments → Redeploy）。
+
+**コスト目安（Sonnet 4.6 / $3・$15 per 1M tokens）:** 資料1本 約$0.15〜0.30、画像Vision読み取り 約$0.01〜0.03/枚 → **$5でおよそ20本**。安く回すなら `CONSULT_DECK_MODEL=claude-haiku-4-5`、最高品質なら `claude-opus-4-8`。
+
+完全無料で動かしたい場合は [`src/lib/llm.ts`](src/lib/llm.ts) の `getModel()` をローカルLLM(Ollama等)に差し替え。キー未設定でも、貼り付け整形・無料OCR・セッション分けはそのまま使えます。
 
 ## 検証（すべてAPI不要）
 
