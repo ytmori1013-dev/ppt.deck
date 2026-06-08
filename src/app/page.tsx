@@ -7,7 +7,16 @@ import { autoIllustrate } from "@/lib/agents/enrich";
 import { recognizeImage } from "@/lib/ocr";
 import { claudeStoryPrompt, claudeCondensePrompt, gptImagePrompt } from "@/lib/prompts/templates";
 import { fileToDataUrl, urlToDataUrl } from "@/lib/image";
-import { loadDeck, saveDeck } from "@/lib/store/idb";
+import {
+  listDecks,
+  loadDeckById,
+  saveDeckById,
+  deleteDeckById,
+  getActiveDeckId,
+  setActiveDeckId,
+  newDeckId,
+  type DeckMeta,
+} from "@/lib/store/idb";
 import type { DeckBrief, SlideSpec } from "@/lib/types";
 
 type Status = { msg: string; kind: "info" | "error" } | null;
@@ -26,18 +35,83 @@ export default function Home() {
   const isMobile = useIsMobile();
   const [navOpen, setNavOpen] = useState(false);
 
-  // Restore / persist (IndexedDB — images can be large).
+  // --- Sessions (multiple saved decks) -----------------------------------
+  const [decks, setDecks] = useState<DeckMeta[]>([]);
+  const [deckId, setDeckId] = useState<string | null>(null);
+  const restoredRef = useRef(false); // guards the save effect until the first load finishes
+
+  // Initial load: pick the active deck (or create the first one).
   useEffect(() => {
-    loadDeck<Persisted>().then((d) => {
-      if (!d) return;
-      if (d.brief) setBrief(d.brief);
-      if (d.raw) setRaw(d.raw);
-      if (d.slides) setSlides(d.slides);
-    });
+    (async () => {
+      const metas = await listDecks();
+      let id = await getActiveDeckId();
+      if (!id || !metas.some((m) => m.id === id)) id = metas[0]?.id ?? null;
+      if (!id) {
+        id = newDeckId();
+        await saveDeckById(id, "資料 1", { brief, raw: "", slides: [] } satisfies Persisted);
+        await setActiveDeckId(id);
+      }
+      const payload = await loadDeckById<Persisted>(id);
+      if (payload) {
+        setBrief(payload.brief ?? { audience: "経営会議" });
+        setRaw(payload.raw ?? "");
+        setSlides(payload.slides ?? []);
+      }
+      setDeckId(id);
+      setDecks(await listDecks());
+      setCurrent(0);
+      restoredRef.current = true;
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persist the active deck on change.
   useEffect(() => {
-    saveDeck({ brief, raw, slides } satisfies Persisted);
-  }, [brief, raw, slides]);
+    if (!restoredRef.current || !deckId) return;
+    const name = deckName(brief, slides);
+    saveDeckById(deckId, name, { brief, raw, slides } satisfies Persisted).then(() =>
+      setDecks((prev) => prev.map((d) => (d.id === deckId ? { ...d, name, updatedAt: Date.now() } : d))),
+    );
+  }, [brief, raw, slides, deckId]);
+
+  /** Switch to another saved deck. */
+  async function switchDeck(id: string) {
+    if (id === deckId) return;
+    const payload = await loadDeckById<Persisted>(id);
+    setBrief(payload?.brief ?? { audience: "経営会議" });
+    setRaw(payload?.raw ?? "");
+    setSlides(payload?.slides ?? []);
+    setCurrent(0);
+    setDeckId(id);
+    await setActiveDeckId(id);
+    setDecks(await listDecks());
+  }
+
+  /** Create a fresh, empty deck and switch to it. */
+  async function createDeck() {
+    const id = newDeckId();
+    const name = `資料 ${decks.length + 1}`;
+    await saveDeckById(id, name, { brief: { audience: "経営会議" }, raw: "", slides: [] } satisfies Persisted);
+    await setActiveDeckId(id);
+    setBrief({ audience: "経営会議" });
+    setRaw("");
+    setSlides([]);
+    setCurrent(0);
+    setDeckId(id);
+    setDecks(await listDecks());
+    flash("新しい資料を作成しました");
+  }
+
+  /** Delete a saved deck; fall back to another (or a fresh one) if it was active. */
+  async function removeDeck(id: string) {
+    await deleteDeckById(id);
+    const remaining = await listDecks();
+    setDecks(remaining);
+    if (id === deckId) {
+      if (remaining[0]) await switchDeck(remaining[0].id);
+      else await createDeck();
+    }
+  }
 
   const slide = slides[current];
 
@@ -243,6 +317,34 @@ export default function Home() {
         </div>
 
         <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 18 }}>
+          {/* Session switcher: multiple saved decks */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <select
+                value={deckId ?? ""}
+                onChange={(e) => switchDeck(e.target.value)}
+                style={{ ...inp, flex: 1, fontWeight: 700 }}
+                aria-label="資料を切り替え"
+              >
+                {decks.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+              <button style={iconBtn} title="新しい資料" onClick={createDeck}>＋</button>
+              <button
+                style={{ ...iconBtn, color: "#a12" }}
+                title="この資料を削除"
+                onClick={() => {
+                  if (confirm("この資料を削除しますか？（元に戻せません）")) removeDeck(deckId!);
+                }}
+                disabled={!deckId}
+              >🗑</button>
+            </div>
+            <p style={{ fontSize: 11, color: "var(--mid-gray)", margin: 0 }}>
+              資料は自動保存され、ここで切り替えできます（{decks.length} 件）。
+            </p>
+          </div>
+
           {/* Step 1: brief + Claude prompt */}
           <Section title="1. 依頼（任意）→ Claude用プロンプト">
             <Field label="タイトル">
@@ -401,6 +503,15 @@ function UrlAdder({ onAdd }: { onAdd: (url: string) => void }) {
       <button style={btnSmall} onClick={() => { onAdd(ref.current?.value ?? ""); if (ref.current) ref.current.value = ""; }}>追加</button>
     </span>
   );
+}
+
+/** A human-friendly name for a deck, derived from its title or first slide. */
+function deckName(brief: Partial<DeckBrief>, slides: SlideSpec[]): string {
+  const t = (brief.title ?? "").trim();
+  if (t) return t.slice(0, 40);
+  const lead = slides.find((s) => s.title || s.lead);
+  const fromSlide = (lead?.title || lead?.lead || "").trim();
+  return fromSlide ? fromSlide.slice(0, 40) : "無題の資料";
 }
 
 /** Cycle a slide image through the three placements: full → right → 余白付き全面. */
