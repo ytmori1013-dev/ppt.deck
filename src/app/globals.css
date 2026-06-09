@@ -17,3 +17,15 @@ body {
   color: var(--navy);
   font-family: var(--slide-font);
 }
+
+/* Disabled buttons should clearly look non-interactive. */
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -123,12 +123,50 @@ const deck: Deck = {
   ],
 };
 
+// Degenerate / overflow inputs must not crash or overflow — they should fall
+// back (empty chart/diagram -> bullets) and shrink/cap long content.
+const edgeDeck: Deck = {
+  brief: { title: "エッジケース検証" },
+  slides: [
+    { layout: "chart", title: "空グラフ", lead: "系列が空でも落ちずに本文へフォールバックする", chart: { type: "bar", categories: [], series: [] } },
+    { layout: "diagram", title: "空図解", lead: "項目が空でも落ちない", diagram: { type: "process", items: [] } },
+    {
+      layout: "bullets",
+      title: "とても長い見出しでもヘッダ内に収まること",
+      lead: "本スライドの言い切りメッセージが非常に長く、複数行にわたって続いたとしても、縮小により枠内に収まり、本文領域へはみ出さないことを確認するためのケースである。",
+      bullets: [{ text: "長い箇条書きの行も枠内に収める" }],
+    },
+    {
+      layout: "kpi",
+      title: "長いKPIラベル",
+      lead: "ラベルが長くても縮小して収まる",
+      kpis: [
+        { value: "5,000億円", label: "2030年における国内EV充電インフラ市場の総額（普通＋急速）" },
+        { value: "+22%", label: "年平均成長率(CAGR)・2024-2030" },
+      ],
+    },
+    {
+      layout: "table",
+      title: "多行テーブル",
+      lead: "行が多くても潰れず『ほかN件』で集約する",
+      table: {
+        headers: ["項目", "値"],
+        rows: Array.from({ length: 20 }, (_, i) => [`項目 ${i + 1}`, `${(i + 1) * 100}`]),
+      },
+    },
+  ],
+};
+
 async function main() {
   const buf = await renderDeckToPptx(deck);
   mkdirSync("tmp", { recursive: true });
   const path = "tmp/sample.pptx";
   writeFileSync(path, buf);
   console.log(`OK: wrote ${path} (${buf.length} bytes, ${deck.slides.length} slides)`);
+
+  const edgeBuf = await renderDeckToPptx(edgeDeck);
+  writeFileSync("tmp/edge.pptx", edgeBuf);
+  console.log(`OK: edge cases rendered without throwing (tmp/edge.pptx, ${edgeBuf.length} bytes)`);
 }
 
 main().catch((e) => {

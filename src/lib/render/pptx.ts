@@ -61,9 +61,11 @@ function addContentFrame(
     charSpacing: isAscii ? 2.5 : 0.5,
     align: "left",
     valign: "middle",
+    shrinkText: true,
   });
 
-  // Governing headline (the message)
+  // Governing headline (the message). shrinkText keeps a long lead inside the
+  // header band instead of overflowing onto the body.
   slide.addText(spec.lead, {
     x: CANVAS.marginX,
     y: CANVAS.marginTop + 0.34,
@@ -76,6 +78,7 @@ function addContentFrame(
     align: "left",
     valign: "top",
     lineSpacingMultiple: 1.04,
+    shrinkText: true,
   });
 
   // Rule under the headline: a short blue segment over a full hairline.
@@ -315,8 +318,18 @@ function renderTable(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number
   const table = spec.table;
   if (!table || table.headers.length === 0) return renderBullets(pptx, slide, spec, top);
 
+  // Cap rows so they stay legible instead of compressing to a hairline; surface
+  // the remainder as a final "ほか N 件" row rather than silently dropping them.
+  const MAX_ROWS = 9;
+  let dataRows = table.rows;
+  let overflow = 0;
+  if (dataRows.length > MAX_ROWS) {
+    overflow = dataRows.length - (MAX_ROWS - 1);
+    dataRows = dataRows.slice(0, MAX_ROWS - 1);
+  }
+
   const bodyH = CANVAS.h - top - 0.7;
-  const rowCount = table.rows.length + 1;
+  const rowCount = dataRows.length + 1 + (overflow ? 1 : 0);
   const rowH = Math.min(0.7, Math.max(0.4, bodyH / rowCount));
 
   const header: PptxGenJS.TableRow = table.headers.map((h) => ({
@@ -330,9 +343,9 @@ function renderTable(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number
     },
   }));
 
-  const rows: PptxGenJS.TableRow[] = table.rows.map((r, ri) =>
+  const rows: PptxGenJS.TableRow[] = dataRows.map((r, ri) =>
     table.headers.map((_, ci) => ({
-      text: r[ci] ?? "",
+      text: r[ci] ?? "", // normalises ragged rows to the header width
       options: {
         fill: { color: ri % 2 === 0 ? COLORS.white : COLORS.lightGray },
         color: COLORS.text,
@@ -343,6 +356,14 @@ function renderTable(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number
       },
     })),
   );
+  if (overflow) {
+    rows.push(
+      table.headers.map((_, ci) => ({
+        text: ci === 0 ? `ほか ${overflow} 件` : "",
+        options: { fill: { color: COLORS.lightGray }, color: COLORS.gray, italic: true, valign: "middle" as const },
+      })),
+    );
+  }
 
   slide.addTable([header, ...rows], {
     x: CANVAS.marginX,
@@ -350,7 +371,7 @@ function renderTable(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number
     w: CONTENT_W,
     rowH,
     fontFace: FONT_FACE,
-    fontSize: SIZE.body - 0.5,
+    fontSize: rowCount > 8 ? SIZE.small : SIZE.body - 0.5,
     border: { type: "solid", color: COLORS.border, pt: 1 },
     valign: "middle",
     autoPage: false,
@@ -359,7 +380,10 @@ function renderTable(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number
 
 function renderChart(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number) {
   const chart = spec.chart;
-  if (!chart) return renderBullets(pptx, slide, spec, top);
+  // Empty/degenerate data would make PptxGenJS emit a broken chart — fall back.
+  if (!chart || chart.series.length === 0 || chart.categories.length === 0) {
+    return renderBullets(pptx, slide, spec, top);
+  }
 
   const data = chart.series.map((s) => ({
     name: s.name,
@@ -409,6 +433,7 @@ function renderChart(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number
       fontSize: SIZE.small,
       italic: true,
       color: COLORS.gray,
+      shrinkText: true,
     });
   }
 }
@@ -473,6 +498,7 @@ function renderKpi(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number) 
       align: "center",
       valign: "top",
       lineSpacingMultiple: 1.05,
+      shrinkText: true,
     });
     // Optional caption.
     if (k.caption) {
@@ -493,7 +519,7 @@ function renderKpi(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number) 
 
 function renderDiagram(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: number) {
   const dg = spec.diagram;
-  if (!dg) return renderBullets(pptx, slide, spec, top);
+  if (!dg || dg.items.length === 0) return renderBullets(pptx, slide, spec, top);
   const items = dg.items;
 
   if (dg.type === "process") {
@@ -537,6 +563,7 @@ function renderDiagram(pptx: PptxGenJS, slide: Slide, spec: SlideSpec, top: numb
         align: "center",
         valign: "top",
         lineSpacingMultiple: 1.05,
+        shrinkText: true,
       });
       if (i < n - 1) {
         slide.addText("›", {

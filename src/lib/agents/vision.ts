@@ -42,5 +42,5 @@ export async function reconstructFromImage(
     ],
   });
 
-  return object.slides;
+  return object.slides ?? [];
 }

@@ -39,6 +39,19 @@ export default function Home() {
   const [decks, setDecks] = useState<DeckMeta[]>([]);
   const [deckId, setDeckId] = useState<string | null>(null);
   const restoredRef = useRef(false); // guards the save effect until the first load finishes
+  const loadedDeckIdRef = useRef<string | null>(null); // which deck the in-memory state belongs to
+  const skipSaveRef = useRef(false); // suppress the redundant save right after loading a deck
+
+  /** Adopt a freshly loaded deck's payload into state without triggering a re-save. */
+  function adoptDeck(id: string, payload: Persisted | null) {
+    loadedDeckIdRef.current = id;
+    skipSaveRef.current = true;
+    setBrief(payload?.brief ?? { audience: "経営会議" });
+    setRaw(payload?.raw ?? "");
+    setSlides(payload?.slides ?? []);
+    setCurrent(0);
+    setDeckId(id);
+  }
 
   // Initial load: pick the active deck (or create the first one).
   useEffect(() => {
@@ -51,38 +64,32 @@ export default function Home() {
         await saveDeckById(id, "資料 1", { brief, raw: "", slides: [] } satisfies Persisted);
         await setActiveDeckId(id);
       }
-      const payload = await loadDeckById<Persisted>(id);
-      if (payload) {
-        setBrief(payload.brief ?? { audience: "経営会議" });
-        setRaw(payload.raw ?? "");
-        setSlides(payload.slides ?? []);
-      }
-      setDeckId(id);
+      adoptDeck(id, await loadDeckById<Persisted>(id));
       setDecks(await listDecks());
-      setCurrent(0);
       restoredRef.current = true;
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist the active deck on change.
+  // Persist the active deck on change — only when the in-memory state actually
+  // belongs to this deck (prevents a stale save from clobbering another deck or
+  // resurrecting a just-deleted one), and never the redundant post-load echo.
   useEffect(() => {
-    if (!restoredRef.current || !deckId) return;
+    if (!restoredRef.current || !deckId || loadedDeckIdRef.current !== deckId) return;
+    if (skipSaveRef.current) {
+      skipSaveRef.current = false;
+      return;
+    }
     const name = deckName(brief, slides);
-    saveDeckById(deckId, name, { brief, raw, slides } satisfies Persisted).then(() =>
-      setDecks((prev) => prev.map((d) => (d.id === deckId ? { ...d, name, updatedAt: Date.now() } : d))),
-    );
+    saveDeckById(deckId, name, { brief, raw, slides } satisfies Persisted)
+      .then(() => setDecks((prev) => prev.map((d) => (d.id === deckId ? { ...d, name, updatedAt: Date.now() } : d))))
+      .catch(() => flash("保存に失敗しました（ブラウザの容量不足の可能性）", "error"));
   }, [brief, raw, slides, deckId]);
 
   /** Switch to another saved deck. */
   async function switchDeck(id: string) {
     if (id === deckId) return;
-    const payload = await loadDeckById<Persisted>(id);
-    setBrief(payload?.brief ?? { audience: "経営会議" });
-    setRaw(payload?.raw ?? "");
-    setSlides(payload?.slides ?? []);
-    setCurrent(0);
-    setDeckId(id);
+    adoptDeck(id, await loadDeckById<Persisted>(id));
     await setActiveDeckId(id);
     setDecks(await listDecks());
   }
@@ -91,29 +98,35 @@ export default function Home() {
   async function createDeck() {
     const id = newDeckId();
     const name = `資料 ${decks.length + 1}`;
-    await saveDeckById(id, name, { brief: { audience: "経営会議" }, raw: "", slides: [] } satisfies Persisted);
+    const empty: Persisted = { brief: { audience: "経営会議" }, raw: "", slides: [] };
+    await saveDeckById(id, name, empty);
     await setActiveDeckId(id);
-    setBrief({ audience: "経営会議" });
-    setRaw("");
-    setSlides([]);
-    setCurrent(0);
-    setDeckId(id);
+    adoptDeck(id, empty);
     setDecks(await listDecks());
     flash("新しい資料を作成しました");
   }
 
-  /** Delete a saved deck; fall back to another (or a fresh one) if it was active. */
+  /** Delete a saved deck. If it's active, switch away FIRST so a pending save
+   *  cannot re-create the deleted deck. */
   async function removeDeck(id: string) {
-    await deleteDeckById(id);
-    const remaining = await listDecks();
-    setDecks(remaining);
     if (id === deckId) {
-      if (remaining[0]) await switchDeck(remaining[0].id);
+      const others = (await listDecks()).filter((d) => d.id !== id);
+      if (others[0]) await switchDeck(others[0].id);
       else await createDeck();
     }
+    await deleteDeckById(id);
+    setDecks(await listDecks());
   }
 
   const slide = slides[current];
+
+  // Auto-dismiss transient messages (info quickly, errors slower) so they don't
+  // pile up. Errors can still be closed manually via the ✕.
+  useEffect(() => {
+    if (!status) return;
+    const t = setTimeout(() => setStatus(null), status.kind === "error" ? 8000 : 4000);
+    return () => clearTimeout(t);
+  }, [status]);
 
   function flash(msg: string, kind: "info" | "error" = "info") {
     setStatus({ msg, kind });
@@ -222,7 +235,10 @@ export default function Home() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || `${res.status}`);
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.error || `サーバエラー (${res.status})`);
+    }
     return res.json();
   }
 
@@ -427,16 +443,24 @@ export default function Home() {
           <strong style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: isMobile ? 140 : 360 }}>{brief.title || "（無題）"}</strong>
           {!isMobile && <span style={{ fontSize: 12, color: "var(--mid-gray)" }}>{slides.length > 0 ? `${slides.length} スライド` : ""}</span>}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-            {busy && !isMobile && <span style={{ fontSize: 12, color: "var(--mid-gray)" }}>{busy}</span>}
-            <button style={{ ...btnPrimary, width: "auto", padding: "8px 16px", whiteSpace: "nowrap", opacity: slides.length ? 1 : 0.5 }} onClick={exportPptx} disabled={!!busy || slides.length === 0}>
+            <button style={{ ...btnPrimary, width: "auto", padding: "8px 16px", whiteSpace: "nowrap" }} onClick={exportPptx} disabled={!!busy || slides.length === 0}>
               {isMobile ? "PPT出力" : "PowerPoint 出力"}
             </button>
           </div>
         </div>
 
+        {/* Busy bar — visible on mobile and desktop so slow ops (OCR%, AI) show progress. */}
+        {busy && (
+          <div style={{ padding: "8px 20px", fontSize: 13, background: "#eef4ff", color: "#1850a0", display: "flex", alignItems: "center", gap: 8 }}>
+            <span aria-hidden style={{ display: "inline-block", width: 12, height: 12, border: "2px solid #1850a0", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+            {busy}
+          </div>
+        )}
+
         {status && (
-          <div style={{ padding: "8px 20px", fontSize: 13, background: status.kind === "error" ? "#fdecec" : "#eef6ee", color: status.kind === "error" ? "#a12" : "#264" }}>
-            {status.msg}
+          <div style={{ padding: "8px 20px", fontSize: 13, background: status.kind === "error" ? "#fdecec" : "#eef6ee", color: status.kind === "error" ? "#a12" : "#264", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ flex: 1 }}>{status.msg}</span>
+            <button onClick={() => setStatus(null)} aria-label="閉じる" style={{ border: "none", background: "transparent", color: "inherit", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: 2 }}>✕</button>
           </div>
         )}
 
@@ -482,12 +506,14 @@ export default function Home() {
                       <button style={btnSmall} onClick={() => updateSlide(current, { layout: nextImageLayout(slide.layout) })}>
                         レイアウト: {imageLayoutLabel(slide.layout)}
                       </button>
-                      <button style={{ ...btnSmall, fontWeight: 700, background: "#eef4ff", borderColor: "#cfe0ff" }} disabled={!!busy} onClick={aiVision}>🤖 AIで読み取り→編集可能（要APIキー）</button>
-                      <button style={btnSmall} disabled={!!busy} onClick={ocrCurrent}>🔍 無料OCR（文字のみ）</button>
+                      <button style={{ ...btnSmall, fontWeight: 700, background: "#eef4ff", borderColor: "#cfe0ff" }} disabled={!!busy} onClick={aiVision} title="Claudeが画像を読み、表・図・箇条書きまで編集可能スライドに再構築（APIキー要・1枚 約$0.01〜）">🤖 AIで再構築（高精度・有料）</button>
+                      <button style={btnSmall} disabled={!!busy} onClick={ocrCurrent} title="ブラウザ内で文字だけ抽出（無料・レイアウトや図は復元しません）">🔍 OCRで文字だけ（無料）</button>
                       <button style={{ ...btnSmall, color: "#a12" }} onClick={() => updateSlide(current, { image: undefined, layout: "bullets" })}>画像を削除</button>
                     </>
                   )}
-                  <span style={{ color: "var(--mid-gray)" }}>プレビューにドラッグ&ドロップも可</span>
+                  <span style={{ color: "var(--mid-gray)", width: "100%", fontSize: 11 }}>
+                    画像はプレビューにドラッグ&ドロップも可。<strong>🤖再構築</strong>=有料(要APIキー)・高精度／<strong>🔍OCR</strong>=無料・文字のみ。
+                  </span>
                 </div>
 
                 {slide.notes && (

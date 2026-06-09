@@ -145,11 +145,11 @@ function Body({ spec }: { spec: SlideSpec }) {
     );
   }
 
-  if (spec.layout === "chart" && spec.chart) {
+  if (spec.layout === "chart" && spec.chart?.series.length && spec.chart.categories.length) {
     return <ChartPreview chart={spec.chart} />;
   }
 
-  if (spec.layout === "diagram" && spec.diagram) {
+  if (spec.layout === "diagram" && spec.diagram?.items.length) {
     return <DiagramPreview diagram={spec.diagram} />;
   }
 
